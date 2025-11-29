@@ -1,0 +1,26 @@
+╔════════════════════════════════════════════════════════════╗
+║         SLIDING PUZZLE GAME - QUICK START                 ║
+╚════════════════════════════════════════════════════════════╝
+
+To run the game, execute this command:
+
+    python main.py
+
+That's it! The game window will open.
+
+CONTROLS:
+- Click tiles adjacent to the blank to move them
+- Click "Solve BFS" for optimal solution
+- Click "Solve DFS" for quick solution  
+- Click "Reset" to restart
+
+REQUIREMENTS:
+- Python 3.7+
+- Pygame 2.0+ (install with: pip install pygame)
+
+For more information, see:
+- README.md - Project overview
+- GETTING_STARTED.md - Detailed usage guide
+- TESTING.md - Test results
+
+Enjoy!
