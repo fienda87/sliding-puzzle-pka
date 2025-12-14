@@ -1,7 +1,7 @@
 import pygame
 import sys
 from game.puzzle_game import PuzzleGame
-from game.puzzle_solver import solve_bfs, solve_dfs
+from game.puzzle_solver import solve_bfs, solve_dfs, solve_astar
 from ui.screens import GameScreen, MenuScreen
 from utils.constants import *
 
@@ -107,6 +107,21 @@ def main():
                             else:
                                 print("[SOLVER] No solution found!")
                         
+                        elif action == 'solve_astar' and not game.is_animating:
+                            print("[SOLVER] Running A* solver...")
+                            result = solve_astar(game.current_board, game.goal_board)
+                            
+                            if result:
+                                print(f"[SOLVER] A* Solution Found!")
+                                print(f"[SOLVER] Steps: {result['steps']}")
+                                print(f"[SOLVER] Time: {result['time_taken']:.3f}s")
+                                print(f"[SOLVER] Nodes Explored: {result['nodes_explored']}")
+                                
+                                game_screen.set_solver_result(result, "A*")
+                                animate_solution(game, screen, game_screen, result['solution_path'], "A*")
+                            else:
+                                print("[SOLVER] No solution found!")
+                        
                         elif action == 'reset':
                             game.reset()
                             game_screen.clear_solver_result()
@@ -172,6 +187,20 @@ def main():
                             
                             game_screen.set_solver_result(result, "DFS")
                             animate_solution(game, screen, game_screen, result['solution_path'], "DFS")
+                        else:
+                            print("[SOLVER] No solution found!")
+                    elif event.key == pygame.K_a:
+                        print("[SOLVER] Running A* solver...")
+                        result = solve_astar(game.current_board, game.goal_board)
+                        
+                        if result:
+                            print(f"[SOLVER] A* Solution Found!")
+                            print(f"[SOLVER] Steps: {result['steps']}")
+                            print(f"[SOLVER] Time: {result['time_taken']:.3f}s")
+                            print(f"[SOLVER] Nodes Explored: {result['nodes_explored']}")
+                            
+                            game_screen.set_solver_result(result, "A*")
+                            animate_solution(game, screen, game_screen, result['solution_path'], "A*")
                         else:
                             print("[SOLVER] No solution found!")
         

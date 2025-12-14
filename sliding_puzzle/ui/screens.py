@@ -75,17 +75,19 @@ class GameScreen:
         self.ui = GameUI(window_width, window_height)
         
         button_y = board_y + grid_size * (TILE_SIZE + PADDING) + 30
-        button_width = 120
+        button_width = 100
         button_height = 40
-        button_spacing = 15
+        button_spacing = 10
         
-        total_button_width = 3 * button_width + 2 * button_spacing
+        total_button_width = 4 * button_width + 3 * button_spacing
         start_x = (window_width - total_button_width) // 2
         
         self.button_solve_bfs = UIButton(start_x, button_y, button_width, button_height, "Solve BFS")
         self.button_solve_dfs = UIButton(start_x + button_width + button_spacing, button_y, 
                                          button_width, button_height, "Solve DFS")
-        self.button_reset = UIButton(start_x + 2 * (button_width + button_spacing), button_y, 
+        self.button_solve_astar = UIButton(start_x + 2 * (button_width + button_spacing), button_y, 
+                                           button_width, button_height, "Solve A*")
+        self.button_reset = UIButton(start_x + 3 * (button_width + button_spacing), button_y, 
                                      button_width, button_height, "Reset")
         
         button_y2 = button_y + button_height + button_spacing
@@ -93,8 +95,8 @@ class GameScreen:
         self.button_back = UIButton(start_x + button_width + button_spacing, button_y2, 
                                     button_width, button_height, "Back to Menu")
         
-        self.buttons = [self.button_solve_bfs, self.button_solve_dfs, self.button_reset, 
-                       self.button_undo, self.button_back]
+        self.buttons = [self.button_solve_bfs, self.button_solve_dfs, self.button_solve_astar, 
+                       self.button_reset, self.button_undo, self.button_back]
         
         self.solver_result = None
         self.solver_type = None
@@ -127,6 +129,9 @@ class GameScreen:
         
         if self.button_solve_dfs.is_clicked(mouse_pos):
             return ('solve_dfs', None)
+        
+        if self.button_solve_astar.is_clicked(mouse_pos):
+            return ('solve_astar', None)
         
         if self.button_reset.is_clicked(mouse_pos):
             return ('reset', None)
