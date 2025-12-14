@@ -68,5 +68,6 @@ KEYBOARD_CONTROLS = [
     "R: Reset puzzle",
     "ESC: Back to menu",
     "Space: Solve with BFS",
-    "S: Solve with DFS"
+    "S: Solve with DFS",
+    "A: Solve with A*"
 ]
