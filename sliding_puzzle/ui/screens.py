@@ -144,8 +144,6 @@ class GameScreen:
         for button in self.buttons:
             button.render(screen)
 
-        self.ui.draw_metrics(screen, game.moves, game.get_time_elapsed())
-
         if self.is_solving:
             self.ui.draw_solving_status(screen, self.solving_algorithm, self.button_solve_bfs.rect.x, 20)
 
