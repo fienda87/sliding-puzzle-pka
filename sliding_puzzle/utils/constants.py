@@ -17,6 +17,20 @@ COLOR_UI_TEXT = (50, 50, 50)
 COLOR_GRID_LINE = (200, 200, 200)
 COLOR_TITLE = (41, 128, 185)
 
+# Table styling
+COLOR_TABLE_HEADER_BG = (52, 73, 94)
+COLOR_TABLE_HEADER_TEXT = (255, 255, 255)
+COLOR_TABLE_ROW_BG_1 = (255, 255, 255)
+COLOR_TABLE_ROW_BG_2 = (245, 245, 245)
+COLOR_TABLE_BORDER = (180, 180, 180)
+COLOR_HIGHLIGHT_FASTEST_BG = (210, 255, 210)
+COLOR_HIGHLIGHT_MOST_NODES_BG = (255, 210, 210)
+COLOR_HIGHLIGHT_BOTH_BG = (255, 245, 200)
+
+# Shuffle settings
+SHUFFLE_MOVES_3x3 = 30
+SHUFFLE_MOVES_4x4 = 60
+
 FONT_NAME = "Arial"
 FONT_SIZE_TILE = 28
 FONT_SIZE_UI = 16
@@ -65,7 +79,7 @@ LEVELS = {
 KEYBOARD_CONTROLS = [
     "Arrow Keys: Move blank tile",
     "U: Undo last move",
-    "R: Reset puzzle",
+    "R: Shuffle puzzle",
     "ESC: Back to menu",
     "Space: Solve with BFS",
     "S: Solve with DFS",
