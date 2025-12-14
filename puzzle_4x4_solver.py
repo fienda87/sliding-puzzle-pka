@@ -4,12 +4,13 @@
 Usage (Colab / local):
     !python puzzle_4x4_solver.py
 
-Optional:
-    !python puzzle_4x4_solver.py --difficulty hard --runs 3 --verbose
+Optional with arguments:
+    !python puzzle_4x4_solver.py --difficulty hard --shuffle-moves 15
 
 Notes:
 - No pygame dependency.
 - Imports the existing solver modules from this repository.
+- Displays detailed output with ASCII tables and progress indicators.
 """
 
 from __future__ import annotations
@@ -57,23 +58,74 @@ OPPOSITE_MOVE: dict[str, str] = {
 
 
 def copy_board(board: Board) -> Board:
+    """Create a deep copy of a board."""
     return [row[:] for row in board]
 
 
-def format_board(board: Board) -> str:
-    width = len(str(max(max(row) for row in board)))
+def render_board_ascii_table(board: Board, title: str = "") -> str:
+    """Render a board as an ASCII table with box-drawing characters.
+    
+    Example output:
+    ┌────┬────┬────┬────┐
+    │ 1  │ 2  │ 3  │ 4  │
+    ├────┼────┼────┼────┤
+    │ 5  │ 6  │ 7  │ 8  │
+    ├────┼────┼────┼────┤
+    │ 9  │ 10 │ 11 │ 12 │
+    ├────┼────┼────┼────┤
+    │ 13 │ 14 │ 15 │ 0  │
+    └────┴────┴────┴────┘
+    """
+    size = len(board)
+    
+    # Determine cell width based on largest number
+    max_num = max(max(row) for row in board)
+    cell_width = max(len(str(max_num)), 2)
+    
     lines: list[str] = []
-    for row in board:
-        parts = []
-        for v in row:
-            parts.append(".".rjust(width) if v == 0 else str(v).rjust(width))
-        lines.append(" ".join(parts))
+    
+    # Title
+    if title:
+        lines.append(title)
+    
+    # Top border
+    lines.append("┌" + "┬".join("─" * (cell_width + 2) for _ in range(size)) + "┐")
+    
+    # Rows with data
+    for i, row in enumerate(board):
+        cells = []
+        for value in row:
+            if value == 0:
+                display = "0"
+            else:
+                display = str(value)
+            cells.append(f" {display.ljust(cell_width)} ")
+        lines.append("│" + "│".join(cells) + "│")
+        
+        # Add middle border between rows
+        if i < size - 1:
+            lines.append("├" + "┼".join("─" * (cell_width + 2) for _ in range(size)) + "┤")
+    
+    # Bottom border
+    lines.append("└" + "┴".join("─" * (cell_width + 2) for _ in range(size)) + "┘")
+    
+    # Add note about blank tile
+    if title:
+        lines.append("(0 = blank)")
+    
     return "\n".join(lines)
 
 
 def generate_solvable_puzzle_4x4(shuffle_moves: int, rng: random.Random) -> Board:
-    """Generate a random solvable 4x4 board by shuffling from the goal."""
-
+    """Generate a random solvable 4x4 board by shuffling from the goal.
+    
+    Args:
+        shuffle_moves: Number of random moves to apply to goal state
+        rng: Random number generator for reproducibility
+        
+    Returns:
+        A solvable 4x4 puzzle board
+    """
     if shuffle_moves <= 0:
         raise ValueError("shuffle_moves must be >= 1")
 
@@ -84,6 +136,7 @@ def generate_solvable_puzzle_4x4(shuffle_moves: int, rng: random.Random) -> Boar
         for _ in range(shuffle_moves):
             possible = state.get_possible_moves()
 
+            # Avoid immediate reversal of last move for more interesting puzzles
             if last_move is not None:
                 possible = [
                     s for s in possible if s.action is None or s.action != OPPOSITE_MOVE[last_move]
@@ -95,12 +148,14 @@ def generate_solvable_puzzle_4x4(shuffle_moves: int, rng: random.Random) -> Boar
             state = rng.choice(possible)
             last_move = state.action
 
+        # Ensure we got a different board from the goal
         if state.board != GOAL_4x4:
             return copy_board(state.board)
 
 
 @dataclass(frozen=True)
 class AlgoResult:
+    """Result of running a single algorithm."""
     algorithm: str
     moves: int
     time_ms: float
@@ -108,8 +163,10 @@ class AlgoResult:
 
 
 def solve_iddfs(initial_board: Board, goal_board: Board, max_depth: int) -> dict[str, object] | None:
-    """Solve with Iterative Deepening DFS (optimal for unit-cost moves)."""
-
+    """Solve with Iterative Deepening DFS (optimal for unit-cost moves).
+    
+    This provides an optimal solution like BFS but with better memory usage.
+    """
     start_time = time.time()
     initial_state = PuzzleState(initial_board)
 
@@ -151,6 +208,17 @@ def solve_iddfs(initial_board: Board, goal_board: Board, max_depth: int) -> dict
 
 
 def render_comparison_table(results: list[AlgoResult]) -> str:
+    """Render comparison table with box-drawing characters.
+    
+    Example output:
+    ┌─────────────┬───────────┬──────────┬─────────────┐
+    │ Algoritma   │ Moves     │ Time (ms)│ Nodes Exp.  │
+    ├─────────────┼───────────┼──────────┼─────────────┤
+    │ BFS         │ 52        │ 2450 ms  │ 45820       │
+    │ DFS         │ 52        │ 1890 ms  │ 38420       │
+    │ A*          │ 52        │ 280 ms   │ 892         │
+    └─────────────┴───────────┴──────────┴─────────────┘
+    """
     headers = ["Algoritma", "Moves", "Time (ms)", "Nodes Exp."]
 
     rows = []
@@ -164,21 +232,26 @@ def render_comparison_table(results: list[AlgoResult]) -> str:
             ]
         )
 
+    # Calculate column widths
     col_widths = [
         max(len(headers[i]), max(len(row[i]) for row in rows))
         for i in range(len(headers))
     ]
 
     def hline(left: str, mid: str, right: str, fill: str = "─") -> str:
+        """Generate horizontal line for table borders."""
         pieces = [fill * (w + 2) for w in col_widths]
         return left + mid.join(pieces) + right
 
     def format_row(values: list[str]) -> str:
+        """Format a row with proper alignment."""
         cells = []
         for i, v in enumerate(values):
             if i == 0:
+                # Left-align algorithm name
                 cells.append(f" {v.ljust(col_widths[i])} ")
             else:
+                # Right-align numbers
                 cells.append(f" {v.rjust(col_widths[i])} ")
         return "│" + "│".join(cells) + "│"
 
@@ -195,9 +268,27 @@ def render_comparison_table(results: list[AlgoResult]) -> str:
 
 
 def run_single_puzzle(initial_board: Board, goal_board: Board, max_depth_for_dfs: int) -> list[AlgoResult]:
+    """Run all three algorithms on a single puzzle and return results.
+    
+    Displays progress indicators while running.
+    """
+    results = []
+    
+    # Run BFS
+    print("Running BFS... ⏳", end="", flush=True)
     bfs = puzzle_solver.solve_bfs(initial_board, goal_board)
+    print("\rRunning BFS... ✓ ")
+    
+    # Run DFS
+    print("Running DFS... ⏳", end="", flush=True)
     dfs = solve_iddfs(initial_board, goal_board, max_depth=max_depth_for_dfs)
+    print("\rRunning DFS... ✓ ")
+    
+    # Run A*
+    print("Running A*... ⏳", end="", flush=True)
     astar = puzzle_solver.solve_astar(initial_board, goal_board)
+    print("\rRunning A*... ✓  ")
+    print()
 
     if bfs is None or dfs is None or astar is None:
         raise RuntimeError("One of the solvers returned no solution (puzzle too hard / depth limit too low).")
@@ -219,24 +310,17 @@ def run_single_puzzle(initial_board: Board, goal_board: Board, max_depth_for_dfs
     ]
 
 
-def aggregate_results(all_runs: list[list[AlgoResult]]) -> list[AlgoResult]:
-    by_algo: dict[str, list[AlgoResult]] = {}
-    for run in all_runs:
-        for r in run:
-            by_algo.setdefault(r.algorithm, []).append(r)
-
-    aggregated: list[AlgoResult] = []
-    for algo in ["BFS", "DFS", "A*"]:
-        items = by_algo[algo]
-        moves = int(round(sum(i.moves for i in items) / len(items)))
-        time_ms = sum(i.time_ms for i in items) / len(items)
-        nodes_explored = int(round(sum(i.nodes_explored for i in items) / len(items)))
-        aggregated.append(AlgoResult(algo, moves, time_ms, nodes_explored))
-
-    return aggregated
+def print_winners(results: list[AlgoResult]) -> None:
+    """Print winner highlights for fastest and least nodes explored."""
+    fastest = min(results, key=lambda r: r.time_ms)
+    least_nodes = min(results, key=lambda r: r.nodes_explored)
+    
+    print(f"Winner (Fastest): {fastest.algorithm} - {int(round(fastest.time_ms))} ms")
+    print(f"Winner (Least Nodes Explored): {least_nodes.algorithm} - {least_nodes.nodes_explored} nodes")
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
+    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="Puzzle 4x4 Solver (Headless, Colab-friendly)")
 
     parser.add_argument(
@@ -251,23 +335,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=None,
         help="Override the number of shuffle moves (kept low so BFS is feasible).",
     )
-    parser.add_argument(
-        "--runs",
-        type=int,
-        default=1,
-        help="Number of random puzzles to run (results are averaged).",
-    )
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility.")
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Print each generated puzzle board.",
-    )
 
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Main entry point for the script."""
     args = parse_args(sys.argv[1:] if argv is None else argv)
 
     shuffle_moves = (
@@ -278,36 +352,49 @@ def main(argv: list[str] | None = None) -> int:
 
     if shuffle_moves <= 0:
         raise SystemExit("shuffle_moves must be >= 1")
-    if int(args.runs) <= 0:
-        raise SystemExit("runs must be >= 1")
 
     rng = random.Random(args.seed)
 
-    title = "Puzzle 4x4 Solver - Headless Mode"
+    # Header
+    title = "Puzzle 4x4 Solver - Detailed Output"
+    print()
+    print("=" * 50)
     print(title)
-    print("━" * len(title))
+    print("=" * 50)
     print()
 
-    all_runs: list[list[AlgoResult]] = []
+    # Part 1: Generate and display puzzle
+    print("PART 1: Generate Random Puzzle 4x4")
+    print("-" * 50)
+    print()
+    
+    initial_board = generate_solvable_puzzle_4x4(shuffle_moves=shuffle_moves, rng=rng)
+    
+    print(render_board_ascii_table(initial_board, "Initial State:"))
+    print()
+    print(render_board_ascii_table(GOAL_4x4, "Goal State:"))
+    print()
 
-    for run_idx in range(1, int(args.runs) + 1):
-        initial_board = generate_solvable_puzzle_4x4(shuffle_moves=shuffle_moves, rng=rng)
+    # Part 2: Run algorithms with progress indicators
+    print("PART 2: Run Algorithms (BFS, DFS, A*)")
+    print("-" * 50)
+    print()
+    
+    # For IDDFS, we set max depth to a reasonable value
+    # Using shuffle_moves * 2 to ensure solvability even with non-optimal shuffles
+    max_depth = max(shuffle_moves * 2, 20)
+    results = run_single_puzzle(initial_board, GOAL_4x4, max_depth_for_dfs=max_depth)
 
-        if args.verbose:
-            print(f"Run {run_idx}/{args.runs} - difficulty={args.difficulty}, shuffle_moves={shuffle_moves}")
-            print(format_board(initial_board))
-            print()
-
-        # For IDDFS, we cap the depth to the shuffle length (a solution of that length is guaranteed).
-        run_results = run_single_puzzle(initial_board, GOAL_4x4, max_depth_for_dfs=shuffle_moves)
-        all_runs.append(run_results)
-
-    results = aggregate_results(all_runs)
+    # Part 3: Display results
+    print("PART 3: Algorithm Comparison Results")
+    print("-" * 50)
+    print()
     print(render_comparison_table(results))
     print()
-
-    fastest = min(results, key=lambda r: r.time_ms)
-    print(f"Winner (Fastest): {fastest.algorithm} - {int(round(fastest.time_ms))} ms")
+    
+    # Display winners
+    print_winners(results)
+    print()
 
     return 0
 
