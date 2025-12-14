@@ -1,26 +1,27 @@
-from game.puzzle_state import PuzzleState
-from game.puzzle_solver import solve_bfs, solve_dfs
 from game.puzzle_game import PuzzleGame
-from utils.constants import *
+from game.puzzle_solver import solve_bfs
+from game.puzzle_state import PuzzleState
+from utils.constants import GOAL_3x3, TEST_EASY_3x3
 
-print("Testing PuzzleState...")
-state = PuzzleState([[1, 2, 3], [4, 5, 6], [7, 0, 8]])
-print(f"  Blank position: {state.blank_pos}")
-print(f"  Possible moves: {len(state.get_possible_moves())}")
-print(f"  Is goal: {state.is_goal(GOAL_3x3)}")
 
-print("\nTesting BFS solver on easy puzzle...")
-result = solve_bfs(TEST_EASY_3x3, GOAL_3x3)
-print(f"  Steps: {result['steps']}")
-print(f"  Nodes explored: {result['nodes_explored']}")
+def test_puzzle_state_basics() -> None:
+    state = PuzzleState(TEST_EASY_3x3)
+    assert state.blank_pos == (2, 1)
+    assert state.is_goal(GOAL_3x3) is False
+    assert len(state.get_possible_moves()) > 0
 
-print("\nTesting PuzzleGame...")
-game = PuzzleGame(TEST_EASY_3x3, GOAL_3x3)
-print(f"  Initial moves: {game.moves}")
-print(f"  Blank at: {game.blank_pos}")
-print(f"  Is solved: {game.is_solved()}")
-game.handle_tile_click(2, 2)
-print(f"  After click moves: {game.moves}")
-print(f"  Is solved: {game.is_solved()}")
 
-print("\nAll tests passed!")
+def test_bfs_solver_smoke() -> None:
+    result = solve_bfs(TEST_EASY_3x3, GOAL_3x3)
+    assert result is not None
+    assert result["moves"] == 1
+
+
+def test_puzzle_game_smoke() -> None:
+    game = PuzzleGame(TEST_EASY_3x3, GOAL_3x3)
+    assert game.moves == 0
+    assert game.is_solved() is False
+
+    assert game.handle_tile_click(2, 2) is True
+    assert game.moves == 1
+    assert game.is_solved() is True
