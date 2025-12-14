@@ -1,35 +1,44 @@
-import time
 import random
+import time
 
 from utils.constants import SHUFFLE_MOVES_3x3, SHUFFLE_MOVES_4x4
 
 
 class PuzzleGame:
-    def __init__(self, initial_board, goal_board):
+    """Mutable game state for the sliding puzzle.
+
+    This class is intentionally independent from pygame so it can be tested in isolation.
+    """
+
+    def __init__(self, initial_board: list[list[int]], goal_board: list[list[int]]):
         self.initial_board = [row[:] for row in initial_board]
-        self.goal_board = goal_board
+        self.goal_board = [row[:] for row in goal_board]
+
         self.current_board = [row[:] for row in initial_board]
         self.moves = 0
         self.start_time = time.time()
         self.blank_pos = self.find_blank()
+
         self.is_animating = False
-        self.move_history = []
+        self.move_history: list[list[list[int]]] = []
         self.has_scrambled = self.current_board != self.goal_board
-    
-    def find_blank(self):
-        for i in range(len(self.current_board)):
-            for j in range(len(self.current_board[i])):
-                if self.current_board[i][j] == 0:
+
+    def find_blank(self) -> tuple[int, int] | None:
+        for i, row in enumerate(self.current_board):
+            for j, value in enumerate(row):
+                if value == 0:
                     return (i, j)
         return None
-    
-    def reset(self, board=None):
+
+    def reset(self, *, board: list[list[int]] | None = None) -> None:
+        """Reset the game to a given board (or to the initial board)."""
+
         if board is None:
             board = self.initial_board
         else:
             self.initial_board = [row[:] for row in board]
-        
-        self.current_board = [row[:] for row in self.initial_board]
+
+        self.current_board = [row[:] for row in board]
         self.moves = 0
         self.start_time = time.time()
         self.blank_pos = self.find_blank()
@@ -37,14 +46,16 @@ class PuzzleGame:
         self.move_history = []
         self.has_scrambled = self.current_board != self.goal_board
 
-    def shuffle(self, move_count=None):
+    def shuffle(self, move_count: int | None = None) -> list[list[int]]:
+        """Generate a solvable shuffle by applying random blank moves from the goal state."""
+
         n = len(self.goal_board)
         if move_count is None:
             move_count = SHUFFLE_MOVES_4x4 if n == 4 else SHUFFLE_MOVES_3x3
 
         board = [row[:] for row in self.goal_board]
 
-        blank_row, blank_col = None, None
+        blank_row = blank_col = None
         for i in range(n):
             for j in range(n):
                 if board[i][j] == 0:
@@ -57,8 +68,8 @@ class PuzzleGame:
             blank_row, blank_col = n - 1, n - 1
 
         last_action = None
-        opposite = {'UP': 'DOWN', 'DOWN': 'UP', 'LEFT': 'RIGHT', 'RIGHT': 'LEFT'}
-        directions = [(-1, 0, 'UP'), (1, 0, 'DOWN'), (0, -1, 'LEFT'), (0, 1, 'RIGHT')]
+        opposite = {"UP": "DOWN", "DOWN": "UP", "LEFT": "RIGHT", "RIGHT": "LEFT"}
+        directions = [(-1, 0, "UP"), (1, 0, "DOWN"), (0, -1, "LEFT"), (0, 1, "RIGHT")]
 
         for _ in range(move_count):
             possible = []
@@ -95,85 +106,86 @@ class PuzzleGame:
         self.has_scrambled = True
         return board
 
-    def can_solve(self):
+    def can_solve(self) -> bool:
         return self.has_scrambled and not self.is_solved()
-    
-    def handle_tile_click(self, row, col):
-        if self.is_animating:
+
+    def handle_tile_click(self, row: int, col: int) -> bool:
+        if self.is_animating or self.blank_pos is None:
             return False
-        
+
         blank_row, blank_col = self.blank_pos
-        
-        is_adjacent = (
-            (abs(row - blank_row) == 1 and col == blank_col) or
-            (abs(col - blank_col) == 1 and row == blank_row)
+
+        is_adjacent = (abs(row - blank_row) == 1 and col == blank_col) or (abs(col - blank_col) == 1 and row == blank_row)
+        if not is_adjacent:
+            return False
+
+        self.move_history.append([r[:] for r in self.current_board])
+
+        self.current_board[blank_row][blank_col], self.current_board[row][col] = (
+            self.current_board[row][col],
+            self.current_board[blank_row][blank_col],
         )
-        
-        if is_adjacent:
-            self.move_history.append([row[:] for row in self.current_board])
-            
-            self.current_board[blank_row][blank_col], self.current_board[row][col] = \
-                self.current_board[row][col], self.current_board[blank_row][blank_col]
-            
-            self.blank_pos = (row, col)
-            self.moves += 1
-            self.has_scrambled = True
-            return True
-        
-        return False
-    
-    def is_solved(self):
+
+        self.blank_pos = (row, col)
+        self.moves += 1
+        self.has_scrambled = True
+        return True
+
+    def is_solved(self) -> bool:
         return self.current_board == self.goal_board
-    
-    def get_time_elapsed(self):
+
+    def get_time_elapsed(self) -> float:
         return time.time() - self.start_time
-    
-    def apply_board_state(self, board):
+
+    def apply_board_state(self, board: list[list[int]]) -> None:
         self.current_board = [row[:] for row in board]
         self.blank_pos = self.find_blank()
         self.has_scrambled = self.current_board != self.goal_board
-    
-    def undo(self):
-        if self.move_history:
-            previous_board = self.move_history.pop()
-            self.current_board = [row[:] for row in previous_board]
-            self.blank_pos = self.find_blank()
-            self.moves = max(0, self.moves - 1)
-            self.has_scrambled = self.current_board != self.goal_board
-            return True
-        return False
-    
-    def can_undo(self):
-        return len(self.move_history) > 0
-    
-    def move_blank_direction(self, direction):
-        if self.is_animating:
+
+    def undo(self) -> bool:
+        if not self.move_history:
             return False
-        
+
+        previous_board = self.move_history.pop()
+        self.current_board = [row[:] for row in previous_board]
+        self.blank_pos = self.find_blank()
+        self.moves = max(0, self.moves - 1)
+        self.has_scrambled = self.current_board != self.goal_board
+        return True
+
+    def can_undo(self) -> bool:
+        return len(self.move_history) > 0
+
+    def move_blank_direction(self, direction: str) -> bool:
+        if self.is_animating or self.blank_pos is None:
+            return False
+
         blank_row, blank_col = self.blank_pos
         n = len(self.current_board)
         m = len(self.current_board[0])
-        
+
         new_row, new_col = blank_row, blank_col
-        
-        if direction == 'UP':
+
+        if direction == "UP":
             new_row = blank_row - 1
-        elif direction == 'DOWN':
+        elif direction == "DOWN":
             new_row = blank_row + 1
-        elif direction == 'LEFT':
+        elif direction == "LEFT":
             new_col = blank_col - 1
-        elif direction == 'RIGHT':
+        elif direction == "RIGHT":
             new_col = blank_col + 1
-        
-        if 0 <= new_row < n and 0 <= new_col < m:
-            self.move_history.append([row[:] for row in self.current_board])
-            
-            self.current_board[blank_row][blank_col], self.current_board[new_row][new_col] = \
-                self.current_board[new_row][new_col], self.current_board[blank_row][blank_col]
-            
-            self.blank_pos = (new_row, new_col)
-            self.moves += 1
-            self.has_scrambled = True
-            return True
-        
-        return False
+
+        if not (0 <= new_row < n and 0 <= new_col < m):
+            return False
+
+        self.move_history.append([row[:] for row in self.current_board])
+
+        self.current_board[blank_row][blank_col], self.current_board[new_row][new_col] = (
+            self.current_board[new_row][new_col],
+            self.current_board[blank_row][blank_col],
+        )
+
+        self.blank_pos = (new_row, new_col)
+        self.moves += 1
+        self.has_scrambled = True
+        return True

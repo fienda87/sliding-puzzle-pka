@@ -1,71 +1,136 @@
 import pygame
-from .components import GameBoard, UIButton, GameUI
-from utils.constants import *
+
+from ui.components import GameBoard, UIButton, GameUI
+from utils.constants import (
+    COLOR_BACKGROUND,
+    COLOR_TITLE,
+    COLOR_UI_TEXT,
+    DIFFICULTIES,
+    FONT_NAME,
+    FONT_SIZE_BUTTON,
+    FONT_SIZE_TITLE,
+    PADDING,
+    TILE_SIZE,
+    get_level,
+)
 
 
 class MenuScreen:
-    def __init__(self, window_width, window_height):
+    """Two-step menu flow: grid selection (3x3/4x4) then difficulty selection."""
+
+    def __init__(self, window_width: int, window_height: int):
         self.window_width = window_width
         self.window_height = window_height
-
-        button_width = 300
-        button_height = 50
-        button_spacing = 20
-        start_y = 200
-
-        center_x = (window_width - button_width) // 2
-
-        self.buttons = {
-            'easy': UIButton(center_x, start_y, button_width, button_height,
-                             "EASY - 3x3, ~2 steps", FONT_SIZE_BUTTON),
-            'medium': UIButton(center_x, start_y + button_height + button_spacing,
-                               button_width, button_height, "MEDIUM - 3x3, ~12 steps", FONT_SIZE_BUTTON),
-            'hard': UIButton(center_x, start_y + 2 * (button_height + button_spacing),
-                             button_width, button_height, "HARD - 3x3, ~30 steps", FONT_SIZE_BUTTON),
-            'expert': UIButton(center_x, start_y + 3 * (button_height + button_spacing),
-                               button_width, button_height, "EXPERT - 4x4, 5+ steps", FONT_SIZE_BUTTON)
-        }
 
         self.title_font = pygame.font.SysFont(FONT_NAME, FONT_SIZE_TITLE, bold=True)
         self.subtitle_font = pygame.font.SysFont(FONT_NAME, 18)
 
-    def render(self, screen):
+        self.view: str = "grid"
+        self.selected_grid_size: int | None = None
+
+        self._create_buttons()
+
+    def _create_buttons(self) -> None:
+        button_width = 300
+        button_height = 50
+        button_spacing = 18
+
+        center_x = (self.window_width - button_width) // 2
+
+        grid_start_y = 240
+        self.grid_buttons: dict[int, UIButton] = {
+            3: UIButton(center_x, grid_start_y, button_width, button_height, "3x3 Grid", FONT_SIZE_BUTTON),
+            4: UIButton(
+                center_x,
+                grid_start_y + button_height + button_spacing,
+                button_width,
+                button_height,
+                "4x4 Grid",
+                FONT_SIZE_BUTTON,
+            ),
+        }
+
+        diff_start_y = 210
+        self.difficulty_buttons: dict[str, UIButton] = {}
+        for i, difficulty in enumerate(DIFFICULTIES):
+            y = diff_start_y + i * (button_height + button_spacing)
+            label = difficulty.capitalize()
+            self.difficulty_buttons[difficulty] = UIButton(center_x, y, button_width, button_height, label, FONT_SIZE_BUTTON)
+
+        self.back_button = UIButton(center_x, diff_start_y + 3 * (button_height + button_spacing) + 10, button_width, 44, "Back")
+
+    def reset(self) -> None:
+        self.view = "grid"
+        self.selected_grid_size = None
+
+    def can_go_back(self) -> bool:
+        return self.view == "difficulty"
+
+    def go_back(self) -> None:
+        if self.can_go_back():
+            self.reset()
+
+    def render(self, screen: pygame.Surface) -> None:
         screen.fill(COLOR_BACKGROUND)
 
         title_text = self.title_font.render("SLIDING PUZZLE", True, COLOR_TITLE)
         title_rect = title_text.get_rect(center=(self.window_width // 2, 80))
         screen.blit(title_text, title_rect)
 
-        subtitle_text = self.subtitle_font.render("Select Difficulty Level", True, COLOR_UI_TEXT)
-        subtitle_rect = subtitle_text.get_rect(center=(self.window_width // 2, 140))
+        if self.view == "grid":
+            subtitle = "Select Grid Size"
+            subtitle_y = 150
+        else:
+            grid = self.selected_grid_size or 3
+            subtitle = f"Select Difficulty ({grid}x{grid})"
+            subtitle_y = 140
+
+        subtitle_text = self.subtitle_font.render(subtitle, True, COLOR_UI_TEXT)
+        subtitle_rect = subtitle_text.get_rect(center=(self.window_width // 2, subtitle_y))
         screen.blit(subtitle_text, subtitle_rect)
 
-        for button in self.buttons.values():
-            button.render(screen)
+        if self.view == "grid":
+            for button in self.grid_buttons.values():
+                button.render(screen)
+        else:
+            for button in self.difficulty_buttons.values():
+                button.render(screen)
+            self.back_button.render(screen)
 
-        legend_y = self.window_height - 100
-        legend_font = pygame.font.SysFont(FONT_NAME, 12)
-        legend_text = legend_font.render(
-            "Arrow keys (move), R (shuffle), U (undo), ESC (menu), Space (BFS), S (DFS), A (A*)",
-            True,
-            COLOR_UI_TEXT,
-        )
-        legend_rect = legend_text.get_rect(center=(self.window_width // 2, legend_y))
-        screen.blit(legend_text, legend_rect)
+    def handle_click(self, mouse_pos: tuple[int, int]) -> dict[str, object] | None:
+        if self.view == "grid":
+            for grid_size, button in self.grid_buttons.items():
+                if button.is_clicked(mouse_pos):
+                    self.view = "difficulty"
+                    self.selected_grid_size = grid_size
+                    return None
+            return None
 
-    def handle_click(self, mouse_pos):
-        for difficulty, button in self.buttons.items():
+        if self.back_button.is_clicked(mouse_pos):
+            self.reset()
+            return None
+
+        for difficulty, button in self.difficulty_buttons.items():
             if button.is_clicked(mouse_pos):
-                return difficulty
+                return get_level(self.selected_grid_size or 3, difficulty)
+
         return None
 
-    def update_hover(self, mouse_pos):
-        for button in self.buttons.values():
+    def update_hover(self, mouse_pos: tuple[int, int]) -> None:
+        if self.view == "grid":
+            for button in self.grid_buttons.values():
+                button.update_hover(mouse_pos)
+            return
+
+        for button in self.difficulty_buttons.values():
             button.update_hover(mouse_pos)
+        self.back_button.update_hover(mouse_pos)
 
 
 class GameScreen:
-    def __init__(self, window_width, window_height, grid_size):
+    """Main gameplay screen, including solver controls and comparison table."""
+
+    def __init__(self, window_width: int, window_height: int, grid_size: int):
         self.window_width = window_width
         self.window_height = window_height
         self.grid_size = grid_size
@@ -89,18 +154,43 @@ class GameScreen:
         button_spacing = 10
 
         self.button_solve_bfs = UIButton(panel_x, panel_y, button_width, button_height, "Solve with BFS")
-        self.button_solve_dfs = UIButton(panel_x, panel_y + (button_height + button_spacing),
-                                         button_width, button_height, "Solve with DFS")
-        self.button_solve_astar = UIButton(panel_x, panel_y + 2 * (button_height + button_spacing),
-                                           button_width, button_height, "Solve with A*")
+        self.button_solve_dfs = UIButton(
+            panel_x,
+            panel_y + (button_height + button_spacing),
+            button_width,
+            button_height,
+            "Solve with DFS",
+        )
+        self.button_solve_astar = UIButton(
+            panel_x,
+            panel_y + 2 * (button_height + button_spacing),
+            button_width,
+            button_height,
+            "Solve with A*",
+        )
 
-        self.button_shuffle = UIButton(panel_x, panel_y + 3 * (button_height + button_spacing),
-                                       button_width, button_height, "Shuffle")
+        self.button_shuffle = UIButton(
+            panel_x,
+            panel_y + 3 * (button_height + button_spacing),
+            button_width,
+            button_height,
+            "Shuffle",
+        )
 
-        self.button_undo = UIButton(panel_x, panel_y + 4 * (button_height + button_spacing),
-                                    button_width, button_height, "Undo")
-        self.button_back = UIButton(panel_x, panel_y + 5 * (button_height + button_spacing),
-                                    button_width, button_height, "Back to Menu")
+        self.button_undo = UIButton(
+            panel_x,
+            panel_y + 4 * (button_height + button_spacing),
+            button_width,
+            button_height,
+            "Undo",
+        )
+        self.button_back = UIButton(
+            panel_x,
+            panel_y + 5 * (button_height + button_spacing),
+            button_width,
+            button_height,
+            "Back to Menu",
+        )
 
         self.buttons = [
             self.button_solve_bfs,
@@ -116,15 +206,12 @@ class GameScreen:
         self.table_width = content_width
         self.table_height = max(60, window_height - self.table_y - 10)
 
-        self.solver_result = None
-        self.solver_type = None
-
         self.is_solving = False
-        self.solving_algorithm = None
+        self.solving_algorithm: str | None = None
 
-        self.comparison_results = []
+        self.comparison_results: list[dict[str, object]] = []
 
-    def render(self, screen, game):
+    def render(self, screen: pygame.Surface, game) -> None:
         screen.fill(COLOR_BACKGROUND)
 
         self.board.render(screen, game.current_board)
@@ -159,56 +246,48 @@ class GameScreen:
         if game.is_solved():
             self.ui.draw_win_message(screen)
 
-    def handle_click(self, mouse_pos, game):
+    def handle_click(self, mouse_pos: tuple[int, int], _game) -> tuple[str | None, object | None]:
         tile = self.board.get_tile_at_pos(mouse_pos[0], mouse_pos[1])
         if tile:
-            return ('tile_click', tile)
+            return ("tile_click", tile)
 
         if self.button_solve_bfs.is_clicked(mouse_pos):
-            return ('solve_bfs', None)
+            return ("solve_bfs", None)
 
         if self.button_solve_dfs.is_clicked(mouse_pos):
-            return ('solve_dfs', None)
+            return ("solve_dfs", None)
 
         if self.button_solve_astar.is_clicked(mouse_pos):
-            return ('solve_astar', None)
+            return ("solve_astar", None)
 
         if self.button_shuffle.is_clicked(mouse_pos):
-            return ('shuffle', None)
+            return ("shuffle", None)
 
         if self.button_undo.is_clicked(mouse_pos):
-            return ('undo', None)
+            return ("undo", None)
 
         if self.button_back.is_clicked(mouse_pos):
-            return ('back', None)
+            return ("back", None)
 
         return (None, None)
 
-    def update_hover(self, mouse_pos):
+    def update_hover(self, mouse_pos: tuple[int, int]) -> None:
         for button in self.buttons:
             button.update_hover(mouse_pos)
 
-    def set_solver_result(self, result, solver_type):
-        self.solver_result = result
-        self.solver_type = solver_type
-
-    def clear_solver_result(self):
-        self.solver_result = None
-        self.solver_type = None
-
-    def set_solving(self, is_solving, algorithm=None):
+    def set_solving(self, is_solving: bool, algorithm: str | None = None) -> None:
         self.is_solving = is_solving
         self.solving_algorithm = algorithm if is_solving else None
 
-    def add_comparison_result(self, algorithm, result):
+    def add_comparison_result(self, algorithm: str, result: dict[str, object]) -> None:
         self.comparison_results.append(
             {
-                'algorithm': algorithm,
-                'moves': result['moves'],
-                'time_ms': result['time_ms'],
-                'nodes_explored': result['nodes_explored'],
+                "algorithm": algorithm,
+                "moves": result["moves"],
+                "time_ms": result["time_ms"],
+                "nodes_explored": result["nodes_explored"],
             }
         )
 
-    def clear_comparison_table(self):
+    def clear_comparison_table(self) -> None:
         self.comparison_results = []

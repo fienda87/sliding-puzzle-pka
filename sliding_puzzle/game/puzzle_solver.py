@@ -148,7 +148,7 @@ def solve_astar(initial_board, goal_board):
     nodes_explored = 0
     
     while open_set:
-        f_score, _, current_state = heapq.heappop(open_set)
+        _, _, current_state = heapq.heappop(open_set)
         
         state_tuple = current_state.get_board_tuple()
         if state_tuple in visited:
