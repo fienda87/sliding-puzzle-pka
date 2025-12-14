@@ -26,6 +26,39 @@ def animate_solution(game, screen, game_screen, solution_path, solver_type):
     game.is_animating = False
 
 
+def solve_and_animate(game, screen, game_screen, solver_func, algorithm_label):
+    if game.is_animating or game_screen.is_solving:
+        return
+
+    starting_board = [row[:] for row in game.current_board]
+
+    game_screen.set_solving(True, algorithm_label)
+
+    screen.fill(COLOR_BACKGROUND)
+    game_screen.render(screen, game)
+    pygame.display.flip()
+    pygame.event.pump()
+
+    print(f"[SOLVER] Running {algorithm_label} solver...")
+    result = solver_func(game.current_board, game.goal_board)
+
+    game_screen.set_solving(False)
+
+    if result:
+        print(f"[SOLVER] {algorithm_label} Solution Found!")
+        print(f"[SOLVER] Steps: {result['steps']}")
+        print(f"[SOLVER] Time: {result['time_taken']:.3f}s")
+        print(f"[SOLVER] Nodes Explored: {result['nodes_explored']}")
+
+        game_screen.set_solver_result(result, algorithm_label)
+        game_screen.add_comparison_result(algorithm_label, result)
+
+        animate_solution(game, screen, game_screen, result['solution_path'], algorithm_label)
+        game.apply_board_state(starting_board)
+    else:
+        print("[SOLVER] No solution found!")
+
+
 def main():
     pygame.init()
     
@@ -72,72 +105,37 @@ def main():
                     elif game_state == "GAME" and game and game_screen:
                         action, data = game_screen.handle_click(mouse_pos, game)
                         
-                        if action == 'tile_click' and not game.is_animating:
+                        if action == 'tile_click' and not game.is_animating and not game_screen.is_solving:
                             row, col = data
                             game.handle_tile_click(row, col)
                             game_screen.clear_solver_result()
-                        
-                        elif action == 'solve_bfs' and not game.is_animating:
-                            print("[SOLVER] Running BFS solver...")
-                            result = solve_bfs(game.current_board, game.goal_board)
-                            
-                            if result:
-                                print(f"[SOLVER] BFS Solution Found!")
-                                print(f"[SOLVER] Steps: {result['steps']}")
-                                print(f"[SOLVER] Time: {result['time_taken']:.3f}s")
-                                print(f"[SOLVER] Nodes Explored: {result['nodes_explored']}")
-                                
-                                game_screen.set_solver_result(result, "BFS")
-                                animate_solution(game, screen, game_screen, result['solution_path'], "BFS")
-                            else:
-                                print("[SOLVER] No solution found!")
-                        
-                        elif action == 'solve_dfs' and not game.is_animating:
-                            print("[SOLVER] Running DFS solver...")
-                            result = solve_dfs(game.current_board, game.goal_board)
-                            
-                            if result:
-                                print(f"[SOLVER] DFS Solution Found!")
-                                print(f"[SOLVER] Steps: {result['steps']}")
-                                print(f"[SOLVER] Time: {result['time_taken']:.3f}s")
-                                print(f"[SOLVER] Nodes Explored: {result['nodes_explored']}")
-                                
-                                game_screen.set_solver_result(result, "DFS")
-                                animate_solution(game, screen, game_screen, result['solution_path'], "DFS")
-                            else:
-                                print("[SOLVER] No solution found!")
-                        
-                        elif action == 'solve_astar' and not game.is_animating:
-                            print("[SOLVER] Running A* solver...")
-                            result = solve_astar(game.current_board, game.goal_board)
-                            
-                            if result:
-                                print(f"[SOLVER] A* Solution Found!")
-                                print(f"[SOLVER] Steps: {result['steps']}")
-                                print(f"[SOLVER] Time: {result['time_taken']:.3f}s")
-                                print(f"[SOLVER] Nodes Explored: {result['nodes_explored']}")
-                                
-                                game_screen.set_solver_result(result, "A*")
-                                animate_solution(game, screen, game_screen, result['solution_path'], "A*")
-                            else:
-                                print("[SOLVER] No solution found!")
-                        
-                        elif action == 'reset':
-                            game.reset()
+
+                        elif action == 'solve_bfs':
+                            solve_and_animate(game, screen, game_screen, solve_bfs, "BFS")
+
+                        elif action == 'solve_dfs':
+                            solve_and_animate(game, screen, game_screen, solve_dfs, "DFS")
+
+                        elif action == 'solve_astar':
+                            solve_and_animate(game, screen, game_screen, solve_astar, "A*")
+
+                        elif action == 'shuffle' and not game.is_animating and not game_screen.is_solving:
+                            game.shuffle()
                             game_screen.clear_solver_result()
-                            print("[GAME] Board reset to initial state")
-                        
-                        elif action == 'undo':
+                            game_screen.clear_comparison_table()
+                            print("[GAME] Puzzle shuffled")
+
+                        elif action == 'undo' and not game.is_animating and not game_screen.is_solving:
                             if game.undo():
                                 game_screen.clear_solver_result()
                                 print("[GAME] Undo last move")
-                        
-                        elif action == 'back':
+
+                        elif action == 'back' and not game.is_animating and not game_screen.is_solving:
                             game_state = "MENU"
                             print("[GAME] Returning to menu")
             
             elif event.type == pygame.KEYDOWN:
-                if game_state == "GAME" and game and not game.is_animating:
+                if game_state == "GAME" and game and game_screen and not game.is_animating and not game_screen.is_solving:
                     if event.key == pygame.K_UP:
                         game.move_blank_direction('UP')
                         game_screen.clear_solver_result()
@@ -155,54 +153,19 @@ def main():
                             game_screen.clear_solver_result()
                             print("[GAME] Undo last move")
                     elif event.key == pygame.K_r:
-                        game.reset()
+                        game.shuffle()
                         game_screen.clear_solver_result()
-                        print("[GAME] Board reset to initial state")
+                        game_screen.clear_comparison_table()
+                        print("[GAME] Puzzle shuffled")
                     elif event.key == pygame.K_ESCAPE:
                         game_state = "MENU"
                         print("[GAME] Returning to menu")
                     elif event.key == pygame.K_SPACE:
-                        print("[SOLVER] Running BFS solver...")
-                        result = solve_bfs(game.current_board, game.goal_board)
-                        
-                        if result:
-                            print(f"[SOLVER] BFS Solution Found!")
-                            print(f"[SOLVER] Steps: {result['steps']}")
-                            print(f"[SOLVER] Time: {result['time_taken']:.3f}s")
-                            print(f"[SOLVER] Nodes Explored: {result['nodes_explored']}")
-                            
-                            game_screen.set_solver_result(result, "BFS")
-                            animate_solution(game, screen, game_screen, result['solution_path'], "BFS")
-                        else:
-                            print("[SOLVER] No solution found!")
+                        solve_and_animate(game, screen, game_screen, solve_bfs, "BFS")
                     elif event.key == pygame.K_s:
-                        print("[SOLVER] Running DFS solver...")
-                        result = solve_dfs(game.current_board, game.goal_board)
-                        
-                        if result:
-                            print(f"[SOLVER] DFS Solution Found!")
-                            print(f"[SOLVER] Steps: {result['steps']}")
-                            print(f"[SOLVER] Time: {result['time_taken']:.3f}s")
-                            print(f"[SOLVER] Nodes Explored: {result['nodes_explored']}")
-                            
-                            game_screen.set_solver_result(result, "DFS")
-                            animate_solution(game, screen, game_screen, result['solution_path'], "DFS")
-                        else:
-                            print("[SOLVER] No solution found!")
+                        solve_and_animate(game, screen, game_screen, solve_dfs, "DFS")
                     elif event.key == pygame.K_a:
-                        print("[SOLVER] Running A* solver...")
-                        result = solve_astar(game.current_board, game.goal_board)
-                        
-                        if result:
-                            print(f"[SOLVER] A* Solution Found!")
-                            print(f"[SOLVER] Steps: {result['steps']}")
-                            print(f"[SOLVER] Time: {result['time_taken']:.3f}s")
-                            print(f"[SOLVER] Nodes Explored: {result['nodes_explored']}")
-                            
-                            game_screen.set_solver_result(result, "A*")
-                            animate_solution(game, screen, game_screen, result['solution_path'], "A*")
-                        else:
-                            print("[SOLVER] No solution found!")
+                        solve_and_animate(game, screen, game_screen, solve_astar, "A*")
         
         if game_state == "MENU":
             menu_screen.render(screen)

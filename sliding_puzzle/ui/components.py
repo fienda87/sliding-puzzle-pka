@@ -88,14 +88,21 @@ class GameUI:
         text_surface = font.render(text, True, color)
         screen.blit(text_surface, (x, y))
     
-    def draw_metrics(self, screen, moves, elapsed_time):
+    def draw_metrics(self, screen, moves, elapsed_time, x=20, y=20):
         moves_text = f"Moves: {moves}"
-        self.draw_text(screen, moves_text, 20, 20)
+        self.draw_text(screen, moves_text, x, y)
         
         minutes = int(elapsed_time // 60)
         seconds = int(elapsed_time % 60)
         time_text = f"Time: {minutes:02d}:{seconds:02d}"
-        self.draw_text(screen, time_text, 20, 45)
+        self.draw_text(screen, time_text, x, y + 25)
+
+    def draw_solving_status(self, screen, algorithm, x, y):
+        if not algorithm:
+            return
+
+        font = pygame.font.SysFont(FONT_NAME, FONT_SIZE_UI, bold=True)
+        self.draw_text(screen, f"Solving with {algorithm}...", x, y, font=font)
     
     def draw_solver_info(self, screen, solver_result, solver_type):
         if solver_result:
@@ -104,6 +111,87 @@ class GameUI:
             self.draw_text(screen, f"Steps: {solver_result['steps']}", 20, y_offset + 25)
             self.draw_text(screen, f"Time: {solver_result['time_taken']:.3f}s", 20, y_offset + 50)
             self.draw_text(screen, f"Nodes: {solver_result['nodes_explored']}", 20, y_offset + 75)
+
+    def draw_comparison_table(self, screen, results, x, y, width, height):
+        header_font = pygame.font.SysFont(FONT_NAME, 14, bold=True)
+        row_font = pygame.font.SysFont(FONT_NAME, 14)
+
+        header_height = 26
+        row_height = 22
+
+        max_visible_rows = max(1, (height - header_height) // row_height)
+        visible_results = results[-max_visible_rows:]
+
+        fastest_time_ms = min((r['time_ms'] for r in visible_results), default=None)
+        most_nodes = max((r['nodes_explored'] for r in visible_results), default=None)
+
+        table_rect = pygame.Rect(x, y, width, header_height + len(visible_results) * row_height)
+        pygame.draw.rect(screen, COLOR_TABLE_BORDER, table_rect, 1)
+
+        header_rect = pygame.Rect(x, y, width, header_height)
+        pygame.draw.rect(screen, COLOR_TABLE_HEADER_BG, header_rect)
+        pygame.draw.rect(screen, COLOR_TABLE_BORDER, header_rect, 1)
+
+        columns = [
+            ("Algorithm", "algorithm", 0.22),
+            ("Moves", "moves", 0.16),
+            ("Time (ms)", "time_ms", 0.22),
+            ("Nodes Explored", "nodes_explored", 0.40),
+        ]
+
+        col_rects = []
+        current_x = x
+        for i, (_, _, fraction) in enumerate(columns):
+            col_width = width - (current_x - x) if i == len(columns) - 1 else int(width * fraction)
+            col_rect = pygame.Rect(current_x, y, col_width, header_height)
+            col_rects.append(col_rect)
+            current_x += col_width
+
+        for col_rect, (title, _, _) in zip(col_rects, columns):
+            text_surface = header_font.render(title, True, COLOR_TABLE_HEADER_TEXT)
+            text_rect = text_surface.get_rect(center=col_rect.center)
+            screen.blit(text_surface, text_rect)
+
+        for col_rect in col_rects[1:]:
+            pygame.draw.line(screen, COLOR_TABLE_BORDER, (col_rect.left, y), (col_rect.left, y + header_height))
+
+        for i, r in enumerate(visible_results):
+            row_y = y + header_height + i * row_height
+            row_rect = pygame.Rect(x, row_y, width, row_height)
+
+            bg_color = COLOR_TABLE_ROW_BG_1 if i % 2 == 0 else COLOR_TABLE_ROW_BG_2
+
+            is_fastest = r['time_ms'] == fastest_time_ms
+            is_most_nodes = r['nodes_explored'] == most_nodes
+            if is_fastest and is_most_nodes:
+                bg_color = COLOR_HIGHLIGHT_BOTH_BG
+            elif is_fastest:
+                bg_color = COLOR_HIGHLIGHT_FASTEST_BG
+            elif is_most_nodes:
+                bg_color = COLOR_HIGHLIGHT_MOST_NODES_BG
+
+            pygame.draw.rect(screen, bg_color, row_rect)
+            pygame.draw.rect(screen, COLOR_TABLE_BORDER, row_rect, 1)
+
+            for col_rect in col_rects[1:]:
+                pygame.draw.line(
+                    screen,
+                    COLOR_TABLE_BORDER,
+                    (col_rect.left, row_y),
+                    (col_rect.left, row_y + row_height),
+                )
+
+            for col_rect, (_, key, _) in zip(col_rects, columns):
+                value = r.get(key)
+                if key == 'time_ms':
+                    display = str(int(round(value)))
+                else:
+                    display = str(value)
+
+                cell_rect = pygame.Rect(col_rect.x, row_y, col_rect.width, row_height)
+                text_surface = row_font.render(display, True, COLOR_UI_TEXT)
+                text_rect = text_surface.get_rect(center=cell_rect.center)
+                screen.blit(text_surface, text_rect)
     
     def draw_win_message(self, screen):
         win_text = "SOLVED!"
