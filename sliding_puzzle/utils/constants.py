@@ -45,34 +45,66 @@ TEST_MEDIUM_3x3 = [[2, 0, 3], [1, 5, 6], [4, 7, 8]]
 TEST_HARD_3x3 = [[8, 7, 6], [5, 4, 3], [2, 1, 0]]
 TEST_EXPERT_4x4 = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 15, 14, 0]]
 
+DIFFICULTY_PRESETS_3X3 = {
+    'easy': {'shuffles': 5, 'name': 'Easy', 'description': '5 shuffles'},
+    'medium': {'shuffles': 15, 'name': 'Medium', 'description': '15 shuffles'},
+    'hard': {'shuffles': 30, 'name': 'Hard', 'description': '30 shuffles'}
+}
+
+DIFFICULTY_PRESETS_4X4 = {
+    'easy': {'shuffles': 8, 'name': 'Easy', 'description': '5-10 shuffles'},
+    'medium': {'shuffles': 20, 'name': 'Medium', 'description': '15-25 shuffles'},
+    'hard': {'shuffles': 40, 'name': 'Hard', 'description': '30-50 shuffles'}
+}
+
 LEVELS = {
-    'easy': {
+    'easy_3x3': {
         'board': [[1, 2, 3], [4, 5, 6], [7, 0, 8]],
         'goal': [[1, 2, 3], [4, 5, 6], [7, 8, 0]],
         'grid_size': 3,
-        'name': 'Easy',
-        'description': '3x3 Grid, ~2 steps'
+        'name': 'Easy (3x3)',
+        'description': '3x3 Grid, ~2 steps',
+        'shuffles': 5
     },
-    'medium': {
+    'medium_3x3': {
         'board': [[2, 0, 3], [1, 5, 6], [4, 7, 8]],
         'goal': [[1, 2, 3], [4, 5, 6], [7, 8, 0]],
         'grid_size': 3,
-        'name': 'Medium',
-        'description': '3x3 Grid, ~12 steps'
+        'name': 'Medium (3x3)',
+        'description': '3x3 Grid, ~12 steps',
+        'shuffles': 15
     },
-    'hard': {
+    'hard_3x3': {
         'board': [[8, 7, 6], [5, 4, 3], [2, 1, 0]],
         'goal': [[1, 2, 3], [4, 5, 6], [7, 8, 0]],
         'grid_size': 3,
-        'name': 'Hard',
-        'description': '3x3 Grid, ~30 steps'
+        'name': 'Hard (3x3)',
+        'description': '3x3 Grid, ~30 steps',
+        'shuffles': 30
     },
-    'expert': {
-        'board': [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 15, 14, 0]],
-        'goal': [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 0]],
+    'easy_4x4': {
+        'board': GOAL_4x4,
+        'goal': GOAL_4x4,
         'grid_size': 4,
-        'name': 'Expert',
-        'description': '4x4 Grid, 5+ steps'
+        'name': 'Easy (4x4)',
+        'description': '4x4 Grid, 5-10 shuffles',
+        'shuffles': 8
+    },
+    'medium_4x4': {
+        'board': GOAL_4x4,
+        'goal': GOAL_4x4,
+        'grid_size': 4,
+        'name': 'Medium (4x4)',
+        'description': '4x4 Grid, 15-25 shuffles',
+        'shuffles': 20
+    },
+    'hard_4x4': {
+        'board': GOAL_4x4,
+        'goal': GOAL_4x4,
+        'grid_size': 4,
+        'name': 'Hard (4x4)',
+        'description': '4x4 Grid, 30-50 shuffles',
+        'shuffles': 40
     }
 }
 

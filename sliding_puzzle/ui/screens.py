@@ -9,21 +9,25 @@ class MenuScreen:
         self.window_height = window_height
 
         button_width = 300
-        button_height = 50
-        button_spacing = 20
-        start_y = 200
+        button_height = 45
+        button_spacing = 12
+        start_y = 150
 
         center_x = (window_width - button_width) // 2
 
         self.buttons = {
-            'easy': UIButton(center_x, start_y, button_width, button_height,
-                             "EASY - 3x3, ~2 steps", FONT_SIZE_BUTTON),
-            'medium': UIButton(center_x, start_y + button_height + button_spacing,
-                               button_width, button_height, "MEDIUM - 3x3, ~12 steps", FONT_SIZE_BUTTON),
-            'hard': UIButton(center_x, start_y + 2 * (button_height + button_spacing),
-                             button_width, button_height, "HARD - 3x3, ~30 steps", FONT_SIZE_BUTTON),
-            'expert': UIButton(center_x, start_y + 3 * (button_height + button_spacing),
-                               button_width, button_height, "EXPERT - 4x4, 5+ steps", FONT_SIZE_BUTTON)
+            'easy_3x3': UIButton(center_x, start_y, button_width, button_height,
+                                 "Easy (3x3)", 18),
+            'medium_3x3': UIButton(center_x, start_y + (button_height + button_spacing),
+                                   button_width, button_height, "Medium (3x3)", 18),
+            'hard_3x3': UIButton(center_x, start_y + 2 * (button_height + button_spacing),
+                                 button_width, button_height, "Hard (3x3)", 18),
+            'easy_4x4': UIButton(center_x, start_y + 3 * (button_height + button_spacing),
+                                 button_width, button_height, "Easy (4x4)", 18),
+            'medium_4x4': UIButton(center_x, start_y + 4 * (button_height + button_spacing),
+                                   button_width, button_height, "Medium (4x4)", 18),
+            'hard_4x4': UIButton(center_x, start_y + 5 * (button_height + button_spacing),
+                                 button_width, button_height, "Hard (4x4)", 18)
         }
 
         self.title_font = pygame.font.SysFont(FONT_NAME, FONT_SIZE_TITLE, bold=True)
@@ -70,7 +74,8 @@ class GameScreen:
         self.window_height = window_height
         self.grid_size = grid_size
 
-        board_size = grid_size * TILE_SIZE + (grid_size - 1) * PADDING
+        tile_size = 75 if grid_size == 4 else TILE_SIZE
+        board_size = grid_size * tile_size + (grid_size - 1) * PADDING
 
         panel_width = 220
         content_width = board_size + PADDING + panel_width

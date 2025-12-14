@@ -7,8 +7,27 @@ class GameBoard:
         self.x = x
         self.y = y
         self.grid_size = grid_size
-        self.tile_size = TILE_SIZE
+        self.tile_size = self._calculate_tile_size(grid_size)
         self.padding = PADDING
+        self.font_size = self._calculate_font_size(grid_size)
+    
+    def _calculate_tile_size(self, grid_size):
+        """Calculate tile size to fit board in available space."""
+        if grid_size == 3:
+            return TILE_SIZE
+        elif grid_size == 4:
+            return 75
+        else:
+            return TILE_SIZE
+    
+    def _calculate_font_size(self, grid_size):
+        """Calculate font size based on tile size."""
+        if grid_size == 3:
+            return FONT_SIZE_TILE
+        elif grid_size == 4:
+            return 22
+        else:
+            return FONT_SIZE_TILE
     
     def render(self, screen, board):
         for i in range(self.grid_size):
@@ -25,7 +44,7 @@ class GameBoard:
                     pygame.draw.rect(screen, COLOR_TILE, 
                                    (tile_x, tile_y, self.tile_size, self.tile_size))
                     
-                    font = pygame.font.SysFont(FONT_NAME, FONT_SIZE_TILE)
+                    font = pygame.font.SysFont(FONT_NAME, self.font_size)
                     text = font.render(str(tile_value), True, COLOR_TEXT)
                     text_rect = text.get_rect(center=(tile_x + self.tile_size // 2, 
                                                        tile_y + self.tile_size // 2))

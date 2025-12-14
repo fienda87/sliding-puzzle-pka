@@ -99,6 +99,9 @@ def main():
                             game = PuzzleGame(level_data['board'], level_data['goal'])
                             game_screen = GameScreen(WINDOW_WIDTH, WINDOW_HEIGHT, level_data['grid_size'])
                             
+                            if level_data['shuffles']:
+                                game.shuffle(level_data['shuffles'])
+                            
                             game_state = "GAME"
                             print(f"[GAME] Starting {level_data['name']} difficulty")
                     
