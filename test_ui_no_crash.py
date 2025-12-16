@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "sliding_puzzle"))
 import pygame
 
 from game.puzzle_game import PuzzleGame
-from ui.screens import GameScreen, MenuScreen
+from ui.screens import GameScreen, MenuScreen, MetricsScreen
 from utils.constants import LEVELS, WINDOW_HEIGHT, WINDOW_WIDTH
 
 
@@ -26,8 +26,10 @@ def test_ui_initialization() -> None:
         for difficulty, level_data in difficulties.items():
             game = PuzzleGame(level_data["board"], level_data["goal"])
             game_screen = GameScreen(WINDOW_WIDTH, WINDOW_HEIGHT, level_data["grid_size"])
+            metrics_screen = MetricsScreen(WINDOW_WIDTH, WINDOW_HEIGHT, game_screen.comparison_results)
 
             game_screen.render(screen, game)
+            metrics_screen.render(screen)
 
             initial_moves = game.moves
             initial_time = game.get_time_elapsed()
