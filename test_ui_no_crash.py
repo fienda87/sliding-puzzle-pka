@@ -25,8 +25,8 @@ def test_ui_initialization() -> None:
     for grid_size, difficulties in LEVELS.items():
         for difficulty, level_data in difficulties.items():
             game = PuzzleGame(level_data["board"], level_data["goal"])
-            game_screen = GameScreen(WINDOW_WIDTH, WINDOW_HEIGHT, level_data["grid_size"])
-            metrics_screen = MetricsScreen(WINDOW_WIDTH, WINDOW_HEIGHT, game_screen.comparison_results)
+            game_screen = GameScreen(WINDOW_WIDTH, WINDOW_HEIGHT, level_data["grid_size"], game.metrics_results)
+            metrics_screen = MetricsScreen(WINDOW_WIDTH, WINDOW_HEIGHT, game.metrics_results)
 
             game_screen.render(screen, game)
             metrics_screen.render(screen)

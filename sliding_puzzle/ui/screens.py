@@ -135,7 +135,13 @@ class MenuScreen:
 class GameScreen:
     """Main gameplay screen, including solver controls."""
 
-    def __init__(self, window_width: int, window_height: int, grid_size: int):
+    def __init__(
+        self,
+        window_width: int,
+        window_height: int,
+        grid_size: int,
+        metrics_results: list[dict[str, object]] | None = None,
+    ):
         self.window_width = window_width
         self.window_height = window_height
         self.grid_size = grid_size
@@ -189,9 +195,16 @@ class GameScreen:
             button_height,
             "Undo",
         )
-        self.button_back = UIButton(
+        self.button_metrics = UIButton(
             panel_x,
             panel_y + 5 * (button_height + button_spacing),
+            button_width,
+            button_height,
+            "Metrics",
+        )
+        self.button_back = UIButton(
+            panel_x,
+            panel_y + 6 * (button_height + button_spacing),
             button_width,
             button_height,
             "Back to Menu",
@@ -203,6 +216,7 @@ class GameScreen:
             self.button_solve_astar,
             self.button_shuffle,
             self.button_undo,
+            self.button_metrics,
             self.button_back,
         ]
 
@@ -214,7 +228,7 @@ class GameScreen:
         self.is_solving = False
         self.solving_algorithm: str | None = None
 
-        self.comparison_results: list[dict[str, object]] = []
+        self.comparison_results = metrics_results if metrics_results is not None else []
 
     def render(self, screen: pygame.Surface, game) -> None:
         screen.fill(COLOR_BACKGROUND)
@@ -262,6 +276,9 @@ class GameScreen:
         if self.button_undo.is_clicked(mouse_pos):
             return ("undo", None)
 
+        if self.button_metrics.is_clicked(mouse_pos):
+            return ("metrics", None)
+
         if self.button_back.is_clicked(mouse_pos):
             return ("back", None)
 
@@ -290,17 +307,25 @@ class GameScreen:
 
 
 class MetricsScreen:
-    """Dedicated screen to display algorithm comparison metrics with pagination."""
+    """Standalone metrics table view used inside the separate metrics window."""
 
-    def __init__(self, window_width: int, window_height: int, results: list[dict[str, object]]):
+    def __init__(
+        self,
+        window_width: int,
+        window_height: int,
+        results: list[dict[str, object]],
+        *,
+        sort_by_time: bool = False,
+    ):
         self.window_width = window_width
         self.window_height = window_height
         self.results = results
+        self.sort_by_time = sort_by_time
 
         self.page_index = 0
         self.rows_per_page = 10
 
-        self.title_font = pygame.font.SysFont(FONT_NAME, 30, bold=True)
+        self.title_font = pygame.font.SysFont(FONT_NAME, 28, bold=True)
         self.header_font = pygame.font.SysFont(FONT_NAME, 16, bold=True)
         self.row_font = pygame.font.SysFont(FONT_NAME, 16)
         self.page_font = pygame.font.SysFont(FONT_NAME, 16)
@@ -310,53 +335,94 @@ class MetricsScreen:
 
         self._create_layout()
 
-    def _create_layout(self) -> None:
-        panel_margin_x = 40
-        panel_margin_y = 30
+    def resize(self, window_width: int, window_height: int) -> None:
+        self.window_width = window_width
+        self.window_height = window_height
+        self._create_layout()
 
-        panel_width = max(480, self.window_width - panel_margin_x * 2)
-        panel_height = max(420, self.window_height - panel_margin_y * 2)
+    def _create_layout(self) -> None:
+        margin = 18
+        panel_width = max(460, self.window_width - margin * 2)
+        panel_height = max(360, self.window_height - margin * 2)
 
         panel_x = (self.window_width - panel_width) // 2
         panel_y = (self.window_height - panel_height) // 2
-
         self.panel_rect = pygame.Rect(panel_x, panel_y, panel_width, panel_height)
 
-        content_padding = 20
+        content_padding = 18
+        title_row_height = 36
+        title_row_y = self.panel_rect.y + content_padding
 
-        self.table_x = self.panel_rect.x + content_padding
-        self.table_y = self.panel_rect.y + 90
-        self.table_width = self.panel_rect.width - content_padding * 2
-        self.table_height = self.header_height + self.rows_per_page * self.row_height
-
-        self.table_rect = pygame.Rect(self.table_x, self.table_y, self.table_width, self.table_height)
-
-        pagination_y = self.table_rect.bottom + 14
-        button_height = 36
-        button_width = 140
-
-        self.button_prev = UIButton(self.table_rect.left, pagination_y, button_width, button_height, "Previous")
-        self.button_next = UIButton(self.table_rect.right - button_width, pagination_y, button_width, button_height, "Next")
-
-        bottom_button_height = 44
-        bottom_y = self.panel_rect.bottom - content_padding - bottom_button_height
-
-        self.button_reset = UIButton(self.panel_rect.x + content_padding, bottom_y, 140, bottom_button_height, "Reset")
-        back_width = 240
-        self.button_back = UIButton(
-            self.panel_rect.centerx - back_width // 2,
-            bottom_y,
-            back_width,
-            bottom_button_height,
-            "Back to Game",
+        close_size = 30
+        self.button_close_x = UIButton(
+            self.panel_rect.right - content_padding - close_size,
+            title_row_y,
+            close_size,
+            close_size,
+            "X",
+            16,
         )
 
-        self.buttons = [self.button_prev, self.button_next, self.button_reset, self.button_back]
+        self.title_center_y = title_row_y + title_row_height // 2
+
+        divider_y = title_row_y + title_row_height + 12
+        self.divider_y = divider_y
+
+        table_top = divider_y + 12
+
+        close_button_height = 44
+        close_button_width = min(360, self.panel_rect.width - content_padding * 2)
+        close_button_y = self.panel_rect.bottom - content_padding - close_button_height
+        self.button_close = UIButton(
+            self.panel_rect.centerx - close_button_width // 2,
+            close_button_y,
+            close_button_width,
+            close_button_height,
+            "Close Window",
+        )
+
+        pagination_button_height = 36
+        pagination_button_width = 140
+        pagination_y = self.button_close.rect.y - 16 - pagination_button_height
+
+        self.button_prev = UIButton(
+            self.panel_rect.x + content_padding,
+            pagination_y,
+            pagination_button_width,
+            pagination_button_height,
+            "Previous",
+        )
+        self.button_next = UIButton(
+            self.panel_rect.right - content_padding - pagination_button_width,
+            pagination_y,
+            pagination_button_width,
+            pagination_button_height,
+            "Next",
+        )
+
+        table_bottom = pagination_y - 12
+        available_table_height = max(60, table_bottom - table_top)
+
+        self.rows_per_page = max(
+            1,
+            int((available_table_height - self.header_height) // self.row_height),
+        )
+        table_height = self.header_height + self.rows_per_page * self.row_height
+
+        self.table_rect = pygame.Rect(
+            self.panel_rect.x + content_padding,
+            table_top,
+            self.panel_rect.width - content_padding * 2,
+            table_height,
+        )
+
+        self.buttons = [self.button_close_x, self.button_prev, self.button_next, self.button_close]
 
     def get_total_pages(self) -> int:
-        if not self.results:
+        results = self._get_sorted_results()
+        if not results:
             return 1
-        return max(1, (len(self.results) + self.rows_per_page - 1) // self.rows_per_page)
+        return max(1, (len(results) + self.rows_per_page - 1) // self.rows_per_page)
 
     def _clamp_page(self) -> None:
         total_pages = self.get_total_pages()
@@ -373,25 +439,48 @@ class MetricsScreen:
         self.page_index -= 1
         self._clamp_page()
 
+    def _get_sorted_results(self) -> list[dict[str, object]]:
+        if not self.sort_by_time:
+            return list(self.results)
+
+        def key_fn(r: dict[str, object]) -> tuple[float, str]:
+            value = r.get("time_ms")
+            try:
+                time_ms = float(value) if value is not None else float("inf")
+            except (TypeError, ValueError):
+                time_ms = float("inf")
+            return (time_ms, str(r.get("algorithm") or ""))
+
+        return sorted(self.results, key=key_fn)
+
     def get_page_results(self) -> list[dict[str, object]]:
         self._clamp_page()
+        results = self._get_sorted_results()
         start = self.page_index * self.rows_per_page
         end = start + self.rows_per_page
-        return self.results[start:end]
+        return results[start:end]
 
     def render(self, screen: pygame.Surface) -> None:
         self._clamp_page()
-
         screen.fill(COLOR_BACKGROUND)
 
         pygame.draw.rect(screen, COLOR_TABLE_ROW_BG_1, self.panel_rect)
         pygame.draw.rect(screen, COLOR_TABLE_BORDER, self.panel_rect, 2)
 
         title_surface = self.title_font.render("Algorithm Comparison Metrics", True, COLOR_TITLE)
-        title_rect = title_surface.get_rect(center=(self.panel_rect.centerx, self.panel_rect.y + 45))
+        title_rect = title_surface.get_rect(center=(self.panel_rect.centerx, self.title_center_y))
         screen.blit(title_surface, title_rect)
 
-        if not self.results:
+        pygame.draw.line(
+            screen,
+            COLOR_TABLE_BORDER,
+            (self.panel_rect.left, self.divider_y),
+            (self.panel_rect.right, self.divider_y),
+            2,
+        )
+
+        results = self._get_sorted_results()
+        if not results:
             pygame.draw.rect(screen, COLOR_TABLE_BORDER, self.table_rect, 1)
             empty_text = self.row_font.render("No metrics yet. Run a solver to see results.", True, COLOR_UI_TEXT)
             empty_rect = empty_text.get_rect(center=self.table_rect.center)
@@ -422,7 +511,7 @@ class MetricsScreen:
             ("Algoritma", "algorithm", 0.28),
             ("Moves", "moves", 0.16),
             ("Time (ms)", "time_ms", 0.22),
-            ("Nodes Exp.", "nodes_explored", 0.34),
+            ("Nodes Exp", "nodes_explored", 0.34),
         ]
 
         col_rects: list[pygame.Rect] = []
@@ -461,7 +550,10 @@ class MetricsScreen:
             for col_rect, (_, key, _) in zip(col_rects, columns):
                 value = r.get(key)
                 if key == "time_ms" and value is not None:
-                    display = str(int(round(float(value))))
+                    try:
+                        display = str(int(round(float(value))))
+                    except (TypeError, ValueError):
+                        display = ""
                 else:
                     display = "" if value is None else str(value)
 
@@ -471,17 +563,14 @@ class MetricsScreen:
                 screen.blit(text_surface, text_rect)
 
     def handle_click(self, mouse_pos: tuple[int, int]) -> str | None:
+        if self.button_close_x.is_clicked(mouse_pos) or self.button_close.is_clicked(mouse_pos):
+            return "close"
+
         if self.button_prev.is_clicked(mouse_pos):
             return "prev"
 
         if self.button_next.is_clicked(mouse_pos):
             return "next"
-
-        if self.button_back.is_clicked(mouse_pos):
-            return "back"
-
-        if self.button_reset.is_clicked(mouse_pos):
-            return "reset"
 
         return None
 
