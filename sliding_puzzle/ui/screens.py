@@ -3,6 +3,11 @@ import pygame
 from ui.components import GameBoard, UIButton, GameUI
 from utils.constants import (
     COLOR_BACKGROUND,
+    COLOR_TABLE_BORDER,
+    COLOR_TABLE_HEADER_BG,
+    COLOR_TABLE_HEADER_TEXT,
+    COLOR_TABLE_ROW_BG_1,
+    COLOR_TABLE_ROW_BG_2,
     COLOR_TITLE,
     COLOR_UI_TEXT,
     DIFFICULTIES,
@@ -128,7 +133,7 @@ class MenuScreen:
 
 
 class GameScreen:
-    """Main gameplay screen, including solver controls and comparison table."""
+    """Main gameplay screen, including solver controls."""
 
     def __init__(self, window_width: int, window_height: int, grid_size: int):
         self.window_width = window_width
@@ -234,15 +239,6 @@ class GameScreen:
         if self.is_solving:
             self.ui.draw_solving_status(screen, self.solving_algorithm, self.button_solve_bfs.rect.x, 20)
 
-        self.ui.draw_comparison_table(
-            screen,
-            self.comparison_results,
-            self.table_x,
-            self.table_y,
-            self.table_width,
-            self.table_height,
-        )
-
         if game.is_solved():
             self.ui.draw_win_message(screen)
 
@@ -290,4 +286,205 @@ class GameScreen:
         )
 
     def clear_comparison_table(self) -> None:
-        self.comparison_results = []
+        self.comparison_results.clear()
+
+
+class MetricsScreen:
+    """Dedicated screen to display algorithm comparison metrics with pagination."""
+
+    def __init__(self, window_width: int, window_height: int, results: list[dict[str, object]]):
+        self.window_width = window_width
+        self.window_height = window_height
+        self.results = results
+
+        self.page_index = 0
+        self.rows_per_page = 10
+
+        self.title_font = pygame.font.SysFont(FONT_NAME, 30, bold=True)
+        self.header_font = pygame.font.SysFont(FONT_NAME, 16, bold=True)
+        self.row_font = pygame.font.SysFont(FONT_NAME, 16)
+        self.page_font = pygame.font.SysFont(FONT_NAME, 16)
+
+        self.header_height = 30
+        self.row_height = 26
+
+        self._create_layout()
+
+    def _create_layout(self) -> None:
+        panel_margin_x = 40
+        panel_margin_y = 30
+
+        panel_width = max(480, self.window_width - panel_margin_x * 2)
+        panel_height = max(420, self.window_height - panel_margin_y * 2)
+
+        panel_x = (self.window_width - panel_width) // 2
+        panel_y = (self.window_height - panel_height) // 2
+
+        self.panel_rect = pygame.Rect(panel_x, panel_y, panel_width, panel_height)
+
+        content_padding = 20
+
+        self.table_x = self.panel_rect.x + content_padding
+        self.table_y = self.panel_rect.y + 90
+        self.table_width = self.panel_rect.width - content_padding * 2
+        self.table_height = self.header_height + self.rows_per_page * self.row_height
+
+        self.table_rect = pygame.Rect(self.table_x, self.table_y, self.table_width, self.table_height)
+
+        pagination_y = self.table_rect.bottom + 14
+        button_height = 36
+        button_width = 140
+
+        self.button_prev = UIButton(self.table_rect.left, pagination_y, button_width, button_height, "Previous")
+        self.button_next = UIButton(self.table_rect.right - button_width, pagination_y, button_width, button_height, "Next")
+
+        bottom_button_height = 44
+        bottom_y = self.panel_rect.bottom - content_padding - bottom_button_height
+
+        self.button_reset = UIButton(self.panel_rect.x + content_padding, bottom_y, 140, bottom_button_height, "Reset")
+        back_width = 240
+        self.button_back = UIButton(
+            self.panel_rect.centerx - back_width // 2,
+            bottom_y,
+            back_width,
+            bottom_button_height,
+            "Back to Game",
+        )
+
+        self.buttons = [self.button_prev, self.button_next, self.button_reset, self.button_back]
+
+    def get_total_pages(self) -> int:
+        if not self.results:
+            return 1
+        return max(1, (len(self.results) + self.rows_per_page - 1) // self.rows_per_page)
+
+    def _clamp_page(self) -> None:
+        total_pages = self.get_total_pages()
+        self.page_index = max(0, min(self.page_index, total_pages - 1))
+
+    def focus_last_page(self) -> None:
+        self.page_index = self.get_total_pages() - 1
+
+    def next_page(self) -> None:
+        self.page_index += 1
+        self._clamp_page()
+
+    def previous_page(self) -> None:
+        self.page_index -= 1
+        self._clamp_page()
+
+    def get_page_results(self) -> list[dict[str, object]]:
+        self._clamp_page()
+        start = self.page_index * self.rows_per_page
+        end = start + self.rows_per_page
+        return self.results[start:end]
+
+    def render(self, screen: pygame.Surface) -> None:
+        self._clamp_page()
+
+        screen.fill(COLOR_BACKGROUND)
+
+        pygame.draw.rect(screen, COLOR_TABLE_ROW_BG_1, self.panel_rect)
+        pygame.draw.rect(screen, COLOR_TABLE_BORDER, self.panel_rect, 2)
+
+        title_surface = self.title_font.render("Algorithm Comparison Metrics", True, COLOR_TITLE)
+        title_rect = title_surface.get_rect(center=(self.panel_rect.centerx, self.panel_rect.y + 45))
+        screen.blit(title_surface, title_rect)
+
+        if not self.results:
+            pygame.draw.rect(screen, COLOR_TABLE_BORDER, self.table_rect, 1)
+            empty_text = self.row_font.render("No metrics yet. Run a solver to see results.", True, COLOR_UI_TEXT)
+            empty_rect = empty_text.get_rect(center=self.table_rect.center)
+            screen.blit(empty_text, empty_rect)
+        else:
+            self._draw_table(screen, self.get_page_results())
+
+        total_pages = self.get_total_pages()
+        self.button_prev.is_disabled = self.page_index <= 0
+        self.button_next.is_disabled = self.page_index >= total_pages - 1
+
+        for button in self.buttons:
+            button.render(screen)
+
+        page_label = f"Page {self.page_index + 1} of {total_pages}"
+        page_surface = self.page_font.render(page_label, True, COLOR_UI_TEXT)
+        page_rect = page_surface.get_rect(center=(self.panel_rect.centerx, self.button_prev.rect.centery))
+        screen.blit(page_surface, page_rect)
+
+    def _draw_table(self, screen: pygame.Surface, page_results: list[dict[str, object]]) -> None:
+        pygame.draw.rect(screen, COLOR_TABLE_BORDER, self.table_rect, 1)
+
+        header_rect = pygame.Rect(self.table_rect.x, self.table_rect.y, self.table_rect.width, self.header_height)
+        pygame.draw.rect(screen, COLOR_TABLE_HEADER_BG, header_rect)
+        pygame.draw.rect(screen, COLOR_TABLE_BORDER, header_rect, 1)
+
+        columns = [
+            ("Algoritma", "algorithm", 0.28),
+            ("Moves", "moves", 0.16),
+            ("Time (ms)", "time_ms", 0.22),
+            ("Nodes Exp.", "nodes_explored", 0.34),
+        ]
+
+        col_rects: list[pygame.Rect] = []
+        current_x = self.table_rect.x
+        for i, (_, _, fraction) in enumerate(columns):
+            col_width = (
+                self.table_rect.width - (current_x - self.table_rect.x)
+                if i == len(columns) - 1
+                else int(self.table_rect.width * fraction)
+            )
+            col_rect = pygame.Rect(current_x, self.table_rect.y, col_width, self.header_height)
+            col_rects.append(col_rect)
+            current_x += col_width
+
+        for col_rect, (title, _, _) in zip(col_rects, columns):
+            text_surface = self.header_font.render(title, True, COLOR_TABLE_HEADER_TEXT)
+            text_rect = text_surface.get_rect(center=col_rect.center)
+            screen.blit(text_surface, text_rect)
+
+        for col_rect in col_rects[1:]:
+            pygame.draw.line(
+                screen,
+                COLOR_TABLE_BORDER,
+                (col_rect.left, self.table_rect.y),
+                (col_rect.left, self.table_rect.y + self.table_rect.height),
+            )
+
+        for i, r in enumerate(page_results):
+            row_y = self.table_rect.y + self.header_height + i * self.row_height
+            row_rect = pygame.Rect(self.table_rect.x, row_y, self.table_rect.width, self.row_height)
+
+            bg_color = COLOR_TABLE_ROW_BG_1 if i % 2 == 0 else COLOR_TABLE_ROW_BG_2
+            pygame.draw.rect(screen, bg_color, row_rect)
+            pygame.draw.rect(screen, COLOR_TABLE_BORDER, row_rect, 1)
+
+            for col_rect, (_, key, _) in zip(col_rects, columns):
+                value = r.get(key)
+                if key == "time_ms" and value is not None:
+                    display = str(int(round(float(value))))
+                else:
+                    display = "" if value is None else str(value)
+
+                cell_rect = pygame.Rect(col_rect.x, row_y, col_rect.width, self.row_height)
+                text_surface = self.row_font.render(display, True, COLOR_UI_TEXT)
+                text_rect = text_surface.get_rect(center=cell_rect.center)
+                screen.blit(text_surface, text_rect)
+
+    def handle_click(self, mouse_pos: tuple[int, int]) -> str | None:
+        if self.button_prev.is_clicked(mouse_pos):
+            return "prev"
+
+        if self.button_next.is_clicked(mouse_pos):
+            return "next"
+
+        if self.button_back.is_clicked(mouse_pos):
+            return "back"
+
+        if self.button_reset.is_clicked(mouse_pos):
+            return "reset"
+
+        return None
+
+    def update_hover(self, mouse_pos: tuple[int, int]) -> None:
+        for button in self.buttons:
+            button.update_hover(mouse_pos)
