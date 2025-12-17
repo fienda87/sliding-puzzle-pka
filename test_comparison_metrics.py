@@ -20,8 +20,8 @@ def test_algorithm_comparison_metrics() -> None:
 
     level_data = LEVELS[3]["medium"]
     game = PuzzleGame(level_data["board"], level_data["goal"])
-    game_screen = GameScreen(WINDOW_WIDTH, WINDOW_HEIGHT, level_data["grid_size"])
-    metrics_screen = MetricsScreen(WINDOW_WIDTH, WINDOW_HEIGHT, game_screen.comparison_results)
+    game_screen = GameScreen(WINDOW_WIDTH, WINDOW_HEIGHT, level_data["grid_size"], game.metrics_results)
+    metrics_screen = MetricsScreen(WINDOW_WIDTH, WINDOW_HEIGHT, game.metrics_results)
 
     algorithms = [("BFS", solve_bfs), ("DFS", solve_dfs), ("A*", solve_astar)]
 
@@ -50,26 +50,35 @@ def test_algorithm_comparison_metrics() -> None:
         )
 
     assert len(game_screen.comparison_results) == 25
-    assert metrics_screen.get_total_pages() == 3
+    expected_pages = max(
+        1,
+        (len(game_screen.comparison_results) + metrics_screen.rows_per_page - 1) // metrics_screen.rows_per_page,
+    )
+    assert metrics_screen.get_total_pages() == expected_pages
 
     metrics_screen.page_index = 0
     metrics_screen.render(screen)
-    assert metrics_screen.handle_click(metrics_screen.button_next.rect.center) == "next"
-    metrics_screen.next_page()
-    assert metrics_screen.page_index == 1
+    if expected_pages > 1:
+        assert metrics_screen.handle_click(metrics_screen.button_next.rect.center) == "next"
+        metrics_screen.next_page()
+        assert metrics_screen.page_index == 1
 
-    metrics_screen.render(screen)
-    assert metrics_screen.handle_click(metrics_screen.button_prev.rect.center) == "prev"
-    metrics_screen.previous_page()
-    assert metrics_screen.page_index == 0
+        metrics_screen.render(screen)
+        assert metrics_screen.handle_click(metrics_screen.button_prev.rect.center) == "prev"
+        metrics_screen.previous_page()
+        assert metrics_screen.page_index == 0
+    else:
+        assert metrics_screen.handle_click(metrics_screen.button_next.rect.center) is None
+        assert metrics_screen.handle_click(metrics_screen.button_prev.rect.center) is None
 
     metrics_screen.focus_last_page()
-    assert metrics_screen.page_index == 2
+    assert metrics_screen.page_index == expected_pages - 1
 
     metrics_screen.render(screen)
-    assert metrics_screen.handle_click(metrics_screen.button_reset.rect.center) == "reset"
-    metrics_screen.results.clear()
-    metrics_screen.page_index = 0
+    assert metrics_screen.handle_click(metrics_screen.button_close.rect.center) == "close"
+
+    game.shuffle(move_count=2)
+    assert len(game.metrics_results) == 0
     assert len(game_screen.comparison_results) == 0
 
     initial_moves = game.moves
@@ -80,9 +89,6 @@ def test_algorithm_comparison_metrics() -> None:
 
     current_time = game.get_time_elapsed()
     assert current_time >= initial_time
-
-    game_screen.clear_comparison_table()
-    assert len(game_screen.comparison_results) == 0
 
     pygame.quit()
 

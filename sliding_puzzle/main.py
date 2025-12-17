@@ -4,11 +4,19 @@ import pygame
 
 from game.puzzle_game import PuzzleGame
 from game.puzzle_solver import solve_astar, solve_bfs, solve_dfs
-from ui.screens import GameScreen, MenuScreen, MetricsScreen
+from ui.metrics_window import MetricsWindow
+from ui.screens import GameScreen, MenuScreen
 from utils.constants import COLOR_BACKGROUND, FPS, SOLVER_DELAY_MS, WINDOW_HEIGHT, WINDOW_WIDTH
 
 
-def animate_solution(game: PuzzleGame, screen: pygame.Surface, game_screen: GameScreen, solution_path) -> None:
+def animate_solution(
+    game: PuzzleGame,
+    screen: pygame.Surface,
+    game_screen: GameScreen,
+    solution_path,
+    *,
+    metrics_window: MetricsWindow | None = None,
+) -> None:
     """Animate a solver's solution path by stepping through board states."""
 
     game.is_animating = True
@@ -23,7 +31,12 @@ def animate_solution(game: PuzzleGame, screen: pygame.Surface, game_screen: Game
         pygame.time.delay(SOLVER_DELAY_MS)
 
         for event in pygame.event.get():
+            if metrics_window is not None:
+                metrics_window.handle_event(event)
+
             if event.type == pygame.QUIT:
+                if metrics_window is not None:
+                    metrics_window.close()
                 pygame.quit()
                 sys.exit()
 
@@ -36,6 +49,8 @@ def solve_and_animate(
     game_screen: GameScreen,
     solver_func,
     algorithm_label: str,
+    *,
+    metrics_window: MetricsWindow | None = None,
 ) -> dict[str, object] | None:
     """Run a solver, record its metrics, and animate its solution path."""
 
@@ -59,7 +74,13 @@ def solve_and_animate(
         return None
 
     game_screen.add_comparison_result(algorithm_label, result)
-    animate_solution(game, screen, game_screen, result["solution_path"])
+    animate_solution(
+        game,
+        screen,
+        game_screen,
+        result["solution_path"],
+        metrics_window=metrics_window,
+    )
     game.apply_board_state(starting_board)
 
     return result
@@ -68,101 +89,126 @@ def solve_and_animate(
 def main() -> None:
     pygame.init()
 
-    screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+    window_size = (WINDOW_WIDTH, WINDOW_HEIGHT)
+    screen = pygame.display.set_mode(window_size, pygame.RESIZABLE)
     pygame.display.set_caption("Sliding Puzzle Game")
 
     clock = pygame.time.Clock()
 
     game_state = "MENU"
 
-    menu_screen = MenuScreen(WINDOW_WIDTH, WINDOW_HEIGHT)
+    menu_screen = MenuScreen(*window_size)
     game: PuzzleGame | None = None
     game_screen: GameScreen | None = None
-    metrics_screen: MetricsScreen | None = None
+
+    metrics_window = MetricsWindow()
 
     running = True
+    game_mouse_pos = (0, 0)
 
     while running:
-        mouse_pos = pygame.mouse.get_pos()
-
         if game_state == "MENU":
-            menu_screen.update_hover(mouse_pos)
+            menu_screen.update_hover(game_mouse_pos)
         elif game_state == "GAME" and game_screen:
-            game_screen.update_hover(mouse_pos)
-        elif game_state == "METRICS" and metrics_screen:
-            metrics_screen.update_hover(mouse_pos)
+            game_screen.update_hover(game_mouse_pos)
 
         for event in pygame.event.get():
+            if metrics_window.handle_event(event):
+                continue
+
             if event.type == pygame.QUIT:
                 running = False
+                continue
 
-            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            new_window_size = None
+            if event.type == pygame.VIDEORESIZE:
+                new_window_size = event.size
+            elif event.type in (pygame.WINDOWRESIZED, pygame.WINDOWSIZECHANGED) and hasattr(event, "x") and hasattr(
+                event, "y"
+            ):
+                new_window_size = (event.x, event.y)
+
+            if new_window_size is not None:
+                window_size = new_window_size
+                screen = pygame.display.set_mode(window_size, pygame.RESIZABLE)
+                menu_screen = MenuScreen(*window_size)
+                if game is not None and game_screen is not None:
+                    game_screen = GameScreen(
+                        *window_size,
+                        game_screen.grid_size,
+                        game.metrics_results,
+                    )
+                continue
+
+            if event.type == pygame.MOUSEMOTION:
+                game_mouse_pos = event.pos
+                continue
+
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if game_state == "MENU":
-                    level_data = menu_screen.handle_click(mouse_pos)
+                    level_data = menu_screen.handle_click(event.pos)
                     if level_data:
                         game = PuzzleGame(level_data["board"], level_data["goal"])
-                        game_screen = GameScreen(WINDOW_WIDTH, WINDOW_HEIGHT, level_data["grid_size"])
-                        metrics_screen = MetricsScreen(WINDOW_WIDTH, WINDOW_HEIGHT, game_screen.comparison_results)
+                        game_screen = GameScreen(
+                            *window_size,
+                            level_data["grid_size"],
+                            game.metrics_results,
+                        )
                         game_state = "GAME"
                         pygame.display.set_caption("Sliding Puzzle Game")
 
                 elif game_state == "GAME" and game and game_screen:
-                    action, data = game_screen.handle_click(mouse_pos, game)
+                    action, data = game_screen.handle_click(event.pos, game)
 
                     if action == "tile_click" and not game.is_animating and not game_screen.is_solving:
                         row, col = data
                         game.handle_tile_click(row, col)
 
                     elif action == "solve_bfs":
-                        result = solve_and_animate(game, screen, game_screen, solve_bfs, "BFS")
-                        if result and metrics_screen:
-                            metrics_screen.focus_last_page()
-                            game_state = "METRICS"
-                            pygame.display.set_caption("Algorithm Comparison Metrics")
+                        solve_and_animate(
+                            game,
+                            screen,
+                            game_screen,
+                            solve_bfs,
+                            "BFS",
+                            metrics_window=metrics_window,
+                        )
 
                     elif action == "solve_dfs":
-                        result = solve_and_animate(game, screen, game_screen, solve_dfs, "DFS")
-                        if result and metrics_screen:
-                            metrics_screen.focus_last_page()
-                            game_state = "METRICS"
-                            pygame.display.set_caption("Algorithm Comparison Metrics")
+                        solve_and_animate(
+                            game,
+                            screen,
+                            game_screen,
+                            solve_dfs,
+                            "DFS",
+                            metrics_window=metrics_window,
+                        )
 
                     elif action == "solve_astar":
-                        result = solve_and_animate(game, screen, game_screen, solve_astar, "A*")
-                        if result and metrics_screen:
-                            metrics_screen.focus_last_page()
-                            game_state = "METRICS"
-                            pygame.display.set_caption("Algorithm Comparison Metrics")
+                        solve_and_animate(
+                            game,
+                            screen,
+                            game_screen,
+                            solve_astar,
+                            "A*",
+                            metrics_window=metrics_window,
+                        )
 
                     elif action == "shuffle" and not game.is_animating and not game_screen.is_solving:
                         game.shuffle()
-                        game_screen.clear_comparison_table()
-                        if metrics_screen:
-                            metrics_screen.page_index = 0
 
                     elif action == "undo" and not game.is_animating and not game_screen.is_solving:
                         game.undo()
+
+                    elif action == "metrics":
+                        metrics_window.open(game.metrics_results)
 
                     elif action == "back" and not game.is_animating and not game_screen.is_solving:
                         menu_screen.reset()
                         game = None
                         game_screen = None
-                        metrics_screen = None
+                        metrics_window.close()
                         game_state = "MENU"
-                        pygame.display.set_caption("Sliding Puzzle Game")
-
-                elif game_state == "METRICS" and metrics_screen:
-                    action = metrics_screen.handle_click(mouse_pos)
-
-                    if action == "prev":
-                        metrics_screen.previous_page()
-                    elif action == "next":
-                        metrics_screen.next_page()
-                    elif action == "reset":
-                        metrics_screen.results.clear()
-                        metrics_screen.page_index = 0
-                    elif action == "back":
-                        game_state = "GAME"
                         pygame.display.set_caption("Sliding Puzzle Game")
 
             elif event.type == pygame.KEYDOWN:
@@ -170,20 +216,11 @@ def main() -> None:
                     menu_screen.go_back()
                     continue
 
-                if game_state == "METRICS" and metrics_screen:
-                    if event.key == pygame.K_ESCAPE:
-                        game_state = "GAME"
-                        pygame.display.set_caption("Sliding Puzzle Game")
-                    elif event.key in (pygame.K_LEFT, pygame.K_PAGEUP):
-                        metrics_screen.previous_page()
-                    elif event.key in (pygame.K_RIGHT, pygame.K_PAGEDOWN):
-                        metrics_screen.next_page()
-                    elif event.key == pygame.K_r:
-                        metrics_screen.results.clear()
-                        metrics_screen.page_index = 0
+                if game_state != "GAME" or not game or not game_screen:
                     continue
 
-                if game_state != "GAME" or not game or not game_screen:
+                if event.key == pygame.K_m:
+                    metrics_window.open(game.metrics_results)
                     continue
 
                 if game.is_animating or game_screen.is_solving:
@@ -201,45 +238,52 @@ def main() -> None:
                     game.undo()
                 elif event.key == pygame.K_r:
                     game.shuffle()
-                    game_screen.clear_comparison_table()
-                    if metrics_screen:
-                        metrics_screen.page_index = 0
                 elif event.key == pygame.K_ESCAPE:
                     menu_screen.reset()
                     game = None
                     game_screen = None
-                    metrics_screen = None
+                    metrics_window.close()
                     game_state = "MENU"
                     pygame.display.set_caption("Sliding Puzzle Game")
                 elif event.key == pygame.K_SPACE:
-                    result = solve_and_animate(game, screen, game_screen, solve_bfs, "BFS")
-                    if result and metrics_screen:
-                        metrics_screen.focus_last_page()
-                        game_state = "METRICS"
-                        pygame.display.set_caption("Algorithm Comparison Metrics")
+                    solve_and_animate(
+                        game,
+                        screen,
+                        game_screen,
+                        solve_bfs,
+                        "BFS",
+                        metrics_window=metrics_window,
+                    )
                 elif event.key == pygame.K_s:
-                    result = solve_and_animate(game, screen, game_screen, solve_dfs, "DFS")
-                    if result and metrics_screen:
-                        metrics_screen.focus_last_page()
-                        game_state = "METRICS"
-                        pygame.display.set_caption("Algorithm Comparison Metrics")
+                    solve_and_animate(
+                        game,
+                        screen,
+                        game_screen,
+                        solve_dfs,
+                        "DFS",
+                        metrics_window=metrics_window,
+                    )
                 elif event.key == pygame.K_a:
-                    result = solve_and_animate(game, screen, game_screen, solve_astar, "A*")
-                    if result and metrics_screen:
-                        metrics_screen.focus_last_page()
-                        game_state = "METRICS"
-                        pygame.display.set_caption("Algorithm Comparison Metrics")
+                    solve_and_animate(
+                        game,
+                        screen,
+                        game_screen,
+                        solve_astar,
+                        "A*",
+                        metrics_window=metrics_window,
+                    )
 
         if game_state == "MENU":
             menu_screen.render(screen)
         elif game_state == "GAME" and game and game_screen:
             game_screen.render(screen, game)
-        elif game_state == "METRICS" and metrics_screen:
-            metrics_screen.render(screen)
 
         pygame.display.flip()
+
+        metrics_window.render()
         clock.tick(FPS)
 
+    metrics_window.close()
     pygame.quit()
     sys.exit()
 

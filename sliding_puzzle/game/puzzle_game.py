@@ -23,6 +23,8 @@ class PuzzleGame:
         self.move_history: list[list[list[int]]] = []
         self.has_scrambled = self.current_board != self.goal_board
 
+        self.metrics_results: list[dict[str, object]] = []
+
     def find_blank(self) -> tuple[int, int] | None:
         for i, row in enumerate(self.current_board):
             for j, value in enumerate(row):
@@ -45,6 +47,9 @@ class PuzzleGame:
         self.is_animating = False
         self.move_history = []
         self.has_scrambled = self.current_board != self.goal_board
+
+    def clear_metrics(self) -> None:
+        self.metrics_results.clear()
 
     def shuffle(self, move_count: int | None = None) -> list[list[int]]:
         """Generate a solvable shuffle by applying random blank moves from the goal state."""
@@ -103,6 +108,7 @@ class PuzzleGame:
                 board[blank_row][blank_col], board[nr][nc] = board[nr][nc], board[blank_row][blank_col]
 
         self.reset(board=board)
+        self.clear_metrics()
         self.has_scrambled = True
         return board
 
