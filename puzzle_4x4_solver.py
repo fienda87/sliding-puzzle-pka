@@ -362,9 +362,162 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def render_menu() -> str:
+    return """╔═══════════════════════════════════╗
+║  Choose Algorithm to Test:        ║
+║  [1] BFS                          ║
+║  [2] DFS                          ║
+║  [3] A*                           ║
+║  [4] New Puzzle                   ║
+║  [5] Quit                         ║
+║  Enter choice (1-5): _            ║
+╚═══════════════════════════════════╝"""
+
+def validate_menu_input(input_str: str) -> int | None:
+    try:
+        choice = int(input_str.strip())
+        if 1 <= choice <= 5:
+            return choice
+        return None
+    except ValueError:
+        return None
+
+def execute_algorithm(algorithm: str, current_puzzle: Board, max_depth: int) -> dict[str, object] | None:
+    """Execute a single algorithm and return the result."""
+    if algorithm == "BFS":
+        return run_solver_timed(puzzle_solver.solve_bfs, current_puzzle, GOAL_4x4)
+    elif algorithm == "DFS":
+        return run_solver_timed(solve_iddfs, current_puzzle, GOAL_4x4, max_depth)
+    elif algorithm == "A*":
+        return run_solver_timed(puzzle_solver.solve_astar, current_puzzle, GOAL_4x4)
+    return None
+
+def display_algorithm_execution(algorithm: str, solution_path: list[PuzzleState]) -> None:
+    """Display algorithm steps with first 5 and last 5."""
+    print(f"Running {algorithm}...")
+    print(render_algorithm_steps(algorithm, solution_path))
+    print()
+
+def update_comparison_table(results_table: list[AlgoResult], new_result: AlgoResult) -> list[AlgoResult]:
+    """Add new result to cumulative comparison table."""
+    # Remove existing result for same algorithm if present
+    updated_results = [r for r in results_table if r.algorithm != new_result.algorithm]
+    updated_results.append(new_result)
+    return updated_results
+
+def main_interactive() -> int:
+    """Interactive menu-driven puzzle solver."""
+    # Generate initial puzzle
+    rng = random.Random(42)  # Default seed for consistency
+    shuffle_moves = DIFFICULTY_TO_SHUFFLE_MOVES["medium"]
+    
+    initial_board = generate_solvable_puzzle_4x4(shuffle_moves=shuffle_moves, rng=rng)
+    current_board = copy_board(initial_board)
+    results_table: list[AlgoResult] = []
+    max_depth = max(shuffle_moves * 2, 20)
+    
+    # Display initial setup once
+    print("=== 4x4 Sliding Puzzle Solver (Interactive) ===")
+    print()
+    print("Initial State:")
+    print(render_board_ascii_table(initial_board, show_blank_note=True))
+    print()
+    
+    print("Goal State:")
+    print(render_board_ascii_table(GOAL_4x4))
+    print()
+    
+    while True:
+        # Display menu
+        print(render_menu())
+        
+        # Get user input
+        choice_input = input().strip()
+        choice = validate_menu_input(choice_input)
+        
+        if choice is None:
+            print("Invalid input. Please enter a number between 1-5.")
+            print()
+            continue
+        
+        if choice == 5:  # Quit
+            print("Goodbye!")
+            break
+        
+        elif choice == 4:  # New Puzzle
+            print("Generating new puzzle...")
+            initial_board = generate_solvable_puzzle_4x4(shuffle_moves=shuffle_moves, rng=rng)
+            current_board = copy_board(initial_board)
+            results_table.clear()
+            
+            # Display new puzzle states
+            print("New puzzle generated!")
+            print()
+            print("Initial State:")
+            print(render_board_ascii_table(initial_board, show_blank_note=True))
+            print()
+            print("Goal State:")
+            print(render_board_ascii_table(GOAL_4x4))
+            print()
+            continue
+        
+        elif choice in (1, 2, 3):  # Algorithm selection
+            algorithm_names = {1: "BFS", 2: "DFS", 3: "A*"}
+            algorithm = algorithm_names[choice]
+            
+            # Run algorithm with current puzzle state
+            result = execute_algorithm(algorithm, current_board, max_depth)
+            
+            if result is None:
+                print(f"Failed to solve puzzle with {algorithm}. Please try a new puzzle.")
+                print()
+                continue
+            
+            # Display algorithm steps
+            solution_path = result["solution_path"]
+            display_algorithm_execution(algorithm, solution_path)
+            
+            # Create AlgoResult and update table
+            algo_result = AlgoResult(
+                algorithm=algorithm,
+                moves=int(result["moves"]),
+                time_ms=float(result["time_ms"]),
+                nodes_explored=int(result["nodes_explored"])
+            )
+            
+            results_table = update_comparison_table(results_table, algo_result)
+            
+            # Display cumulative comparison table
+            print("Cumulative Comparison:")
+            print(render_comparison_table(results_table))
+            
+            if len(results_table) >= 2:
+                print()
+                print_winners(results_table)
+            
+            print()
+            
+            # Reset puzzle to initial state for fair comparison
+            current_board = copy_board(initial_board)
+            print("Puzzle reset to initial state for next test.")
+            print()
+        
+        else:
+            print("Invalid choice. Please try again.")
+            print()
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
 
+    # If command line arguments are provided, use headless mode for backward compatibility
+    if len(sys.argv[1:] if argv is None else argv) > 0:
+        return main_headless(args)
+    
+    # Otherwise run interactive mode (default for Colab)
+    return main_interactive()
+
+def main_headless(args: argparse.Namespace) -> int:
+    """Original headless mode for backward compatibility."""
     shuffle_moves = (
         int(args.shuffle_moves)
         if args.shuffle_moves is not None
