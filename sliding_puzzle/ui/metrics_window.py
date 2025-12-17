@@ -132,8 +132,14 @@ class MetricsWindow:
 
         if action == "prev":
             self._screen.previous_page()
+            # Ensure window is still active after pagination
+            if self._window is None:
+                return
         elif action == "next":
             self._screen.next_page()
+            # Ensure window is still active after pagination
+            if self._window is None:
+                return
         elif action == "close":
             self.close()
 

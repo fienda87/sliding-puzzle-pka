@@ -491,6 +491,8 @@ class MetricsScreen:
         total_pages = self.get_total_pages()
         self.button_prev.is_disabled = self.page_index <= 0
         self.button_next.is_disabled = self.page_index >= total_pages - 1
+        self.button_close.is_disabled = False  # Always allow close
+        self.button_close_x.is_disabled = False  # Always allow close
 
         for button in self.buttons:
             button.render(screen)
@@ -566,10 +568,10 @@ class MetricsScreen:
         if self.button_close_x.is_clicked(mouse_pos) or self.button_close.is_clicked(mouse_pos):
             return "close"
 
-        if self.button_prev.is_clicked(mouse_pos):
+        if self.button_prev.is_clicked(mouse_pos) and not self.button_prev.is_disabled:
             return "prev"
 
-        if self.button_next.is_clicked(mouse_pos):
+        if self.button_next.is_clicked(mouse_pos) and not self.button_next.is_disabled:
             return "next"
 
         return None
