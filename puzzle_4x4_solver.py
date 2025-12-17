@@ -141,6 +141,7 @@ def generate_solvable_puzzle_4x4(shuffle_moves: int, rng: random.Random) -> Boar
 @dataclass(frozen=True)
 class AlgoResult:
     algorithm: str
+    run_number: int
     moves: int
     time_ms: float
     nodes_explored: int
@@ -242,7 +243,7 @@ def solve_all_algorithms(
     return {"BFS": bfs, "DFS": dfs, "A*": astar}
 
 
-def build_algo_results(solver_results: dict[str, dict[str, object]]) -> list[AlgoResult]:
+def build_algo_results(solver_results: dict[str, dict[str, object]], run_number: int = 1) -> list[AlgoResult]:
     ordered = [
         ("BFS", solver_results["BFS"]),
         ("DFS", solver_results["DFS"]),
@@ -252,6 +253,7 @@ def build_algo_results(solver_results: dict[str, dict[str, object]]) -> list[Alg
     return [
         AlgoResult(
             algo,
+            run_number,
             int(res["moves"]),
             float(res["time_ms"]),
             int(res["nodes_explored"]),
@@ -299,11 +301,12 @@ def render_algorithm_steps(algorithm: str, solution_path: list[PuzzleState]) -> 
 
 
 def render_comparison_table(results: list[AlgoResult]) -> str:
-    headers = ["Algoritma", "Moves", "Time (ms)", "Nodes Exp."]
+    headers = ["Algoritma (Run)", "Moves", "Time (ms)", "Nodes Exp."]
 
     rows: list[list[str]] = []
     for r in results:
-        rows.append([r.algorithm, str(r.moves), f"{int(round(r.time_ms))} ms", str(r.nodes_explored)])
+        algo_run = f"{r.algorithm} (Run #{r.run_number})"
+        rows.append([algo_run, str(r.moves), f"{int(round(r.time_ms))} ms", str(r.nodes_explored)])
 
     col_widths = [
         max(len(headers[i]), max(len(row[i]) for row in rows)) for i in range(len(headers))
@@ -332,14 +335,30 @@ def render_comparison_table(results: list[AlgoResult]) -> str:
     return "\n".join(out)
 
 
-def print_winners(results: list[AlgoResult]) -> None:
+def print_winners_and_stats(results: list[AlgoResult]) -> None:
+    """Display winners and average statistics."""
     fastest = min(results, key=lambda r: r.time_ms)
     least_nodes = min(results, key=lambda r: r.nodes_explored)
 
-    print(f"Winner (Fastest): {fastest.algorithm} - {int(round(fastest.time_ms))} ms")
+    print(f"Winner (Fastest): {fastest.algorithm} (Run #{fastest.run_number}) - {int(round(fastest.time_ms))} ms")
     print(
-        f"Winner (Least Nodes Explored): {least_nodes.algorithm} - {least_nodes.nodes_explored} nodes"
+        f"Winner (Least Nodes): {least_nodes.algorithm} (Run #{least_nodes.run_number}) - {least_nodes.nodes_explored} nodes"
     )
+    
+    # Calculate averages per algorithm
+    algorithms = {}
+    for r in results:
+        if r.algorithm not in algorithms:
+            algorithms[r.algorithm] = []
+        algorithms[r.algorithm].append(r.time_ms)
+    
+    # Show averages when there are multiple runs of ANY algorithm or multiple different algorithms
+    if len(algorithms) > 1 or any(len(times) > 1 for times in algorithms.values()):
+        print()
+        for algo in sorted(algorithms.keys()):
+            times = algorithms[algo]
+            avg_time = sum(times) / len(times)
+            print(f"Average Time ({algo}): {int(round(avg_time))} ms")
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -399,11 +418,9 @@ def display_algorithm_execution(algorithm: str, solution_path: list[PuzzleState]
     print()
 
 def update_comparison_table(results_table: list[AlgoResult], new_result: AlgoResult) -> list[AlgoResult]:
-    """Add new result to cumulative comparison table."""
-    # Remove existing result for same algorithm if present
-    updated_results = [r for r in results_table if r.algorithm != new_result.algorithm]
-    updated_results.append(new_result)
-    return updated_results
+    """Add new result to cumulative comparison table (accumulate all results)."""
+    results_table.append(new_result)
+    return results_table
 
 def main_interactive() -> int:
     """Interactive menu-driven puzzle solver."""
@@ -414,6 +431,7 @@ def main_interactive() -> int:
     initial_board = generate_solvable_puzzle_4x4(shuffle_moves=shuffle_moves, rng=rng)
     current_board = copy_board(initial_board)
     results_table: list[AlgoResult] = []
+    algorithm_run_count: dict[str, int] = {"BFS": 0, "DFS": 0, "A*": 0}
     max_depth = max(shuffle_moves * 2, 20)
     
     # Display initial setup once
@@ -449,6 +467,7 @@ def main_interactive() -> int:
             initial_board = generate_solvable_puzzle_4x4(shuffle_moves=shuffle_moves, rng=rng)
             current_board = copy_board(initial_board)
             results_table.clear()
+            algorithm_run_count = {"BFS": 0, "DFS": 0, "A*": 0}
             
             # Display new puzzle states
             print("New puzzle generated!")
@@ -465,7 +484,11 @@ def main_interactive() -> int:
             algorithm_names = {1: "BFS", 2: "DFS", 3: "A*"}
             algorithm = algorithm_names[choice]
             
-            # Run algorithm with current puzzle state
+            # Increment run count for this algorithm
+            algorithm_run_count[algorithm] += 1
+            
+            # Run algorithm with current puzzle state (reset to initial for fair comparison)
+            current_board = copy_board(initial_board)
             result = execute_algorithm(algorithm, current_board, max_depth)
             
             if result is None:
@@ -475,11 +498,14 @@ def main_interactive() -> int:
             
             # Display algorithm steps
             solution_path = result["solution_path"]
-            display_algorithm_execution(algorithm, solution_path)
+            print(f"Running {algorithm} (Run #{algorithm_run_count[algorithm]})...")
+            print(render_algorithm_steps(algorithm, solution_path))
+            print()
             
             # Create AlgoResult and update table
             algo_result = AlgoResult(
                 algorithm=algorithm,
+                run_number=algorithm_run_count[algorithm],
                 moves=int(result["moves"]),
                 time_ms=float(result["time_ms"]),
                 nodes_explored=int(result["nodes_explored"])
@@ -487,19 +513,15 @@ def main_interactive() -> int:
             
             results_table = update_comparison_table(results_table, algo_result)
             
-            # Display cumulative comparison table
-            print("Cumulative Comparison:")
-            print(render_comparison_table(results_table))
-            
-            if len(results_table) >= 2:
-                print()
-                print_winners(results_table)
-            
+            # Display separator and cumulative comparison table
+            print("━" * 50)
+            print("                RESULTS TABLE")
+            print("━" * 50)
             print()
-            
-            # Reset puzzle to initial state for fair comparison
-            current_board = copy_board(initial_board)
-            print("Puzzle reset to initial state for next test.")
+            print(render_comparison_table(results_table))
+            print()
+            print_winners_and_stats(results_table)
+            print()
             print()
         
         else:
@@ -546,11 +568,11 @@ def main_headless(args: argparse.Namespace) -> int:
         print(render_algorithm_steps(algo, solution_path))
         print()
 
-    results = build_algo_results(solver_results)
+    results = build_algo_results(solver_results, run_number=1)
 
     print(render_comparison_table(results))
     print()
-    print_winners(results)
+    print_winners_and_stats(results)
 
     return 0
 
